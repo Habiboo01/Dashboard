@@ -1,0 +1,2557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>telda~ | Workforce Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+:root{
+  --bg:#070710;--bg1:#0d0d1c;--bg2:#121226;--bg3:#181830;
+  --glass:rgba(255,255,255,.035);--glass-h:rgba(255,255,255,.06);
+  --border:rgba(255,255,255,.07);--border-s:rgba(255,255,255,.12);
+  --text:#eeeef8;--text2:#8080a0;--text3:#3e3e60;
+  --accent:#7c5af0;--accent2:#9b7ff8;--accent-g:rgba(124,90,240,.12);
+  --blue:#3b7ef8;--blue-g:rgba(59,126,248,.12);
+  --green:#22c55e;--green-g:rgba(34,197,94,.12);
+  --red:#ef4444;--red-g:rgba(239,68,68,.12);
+  --amber:#f59e0b;--amber-g:rgba(245,158,11,.12);
+  --r:8px;--r2:12px;--r3:16px;
+  --fd:'Syne',sans-serif;--f:'DM Sans',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--f);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(124,90,240,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(124,90,240,.025) 1px,transparent 1px);background-size:52px 52px;pointer-events:none;z-index:0}
+
+/* SCREENS */
+.screen{display:none;position:relative;z-index:1;min-height:100vh}
+.screen.active{display:block}
+#loginScreen.active{display:flex;align-items:center;justify-content:center}
+
+/* LOGIN */
+.login-box{background:var(--bg2);border:1px solid var(--border-s);border-radius:20px;padding:44px 40px;width:420px;max-width:95vw;text-align:center}
+.login-logo{font-family:var(--fd);font-size:32px;font-weight:800;margin-bottom:6px}
+.login-logo span{color:var(--accent2)}
+.login-sub{font-size:13px;color:var(--text2);margin-bottom:32px}
+.login-tabs{display:flex;background:var(--bg3);border-radius:30px;padding:3px;margin-bottom:26px;gap:2px}
+.login-tab{flex:1;padding:8px;border-radius:24px;border:none;background:transparent;color:var(--text2);font-family:var(--f);font-size:13px;font-weight:500;cursor:pointer;transition:all .2s}
+.login-tab.active{background:var(--accent);color:#fff}
+.login-form{display:flex;flex-direction:column;gap:12px}
+.login-input{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r2);padding:13px 16px;font-family:var(--f);font-size:14px;color:var(--text);outline:none;transition:border-color .2s;width:100%;text-align:center;letter-spacing:2px}
+.login-input::placeholder{color:var(--text3);letter-spacing:0}
+.login-input:focus{border-color:var(--accent)}
+.login-btn{background:var(--accent);border:none;border-radius:var(--r2);padding:13px;font-family:var(--fd);font-size:14px;font-weight:700;color:#fff;cursor:pointer;transition:opacity .2s}
+.login-btn:hover{opacity:.85}
+.login-err{font-size:12px;color:var(--red);min-height:18px}
+.login-hint{font-size:11.5px;color:var(--text3);margin-top:4px}
+
+/* TOPBAR */
+.topbar{position:fixed;top:0;left:0;right:0;height:52px;background:rgba(7,7,16,.92);backdrop-filter:blur(24px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;z-index:100;gap:12px}
+.logo{font-family:var(--fd);font-size:19px;font-weight:800;letter-spacing:-.5px;white-space:nowrap}
+.logo span{color:var(--accent2)}
+.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pill{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);background:var(--glass);border:1px solid var(--border);padding:5px 12px;border-radius:20px;white-space:nowrap}
+.dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.dot-g{background:var(--green);animation:blink 2s infinite}
+.dot-a{background:var(--accent)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--r);font-family:var(--f);font-size:12.5px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--glass);color:var(--text2);transition:all .15s;white-space:nowrap}
+.btn:hover{background:var(--glass-h);color:var(--text);border-color:var(--border-s)}
+.btn-accent{background:var(--accent);border-color:transparent;color:#fff}
+.btn-accent:hover{opacity:.85;border-color:transparent}
+.btn-sm{padding:5px 10px;font-size:11.5px}
+.btn-ghost{border-color:var(--border-s);color:var(--text)}
+.btn-danger{background:var(--red-g);border-color:rgba(239,68,68,.25);color:var(--red)}
+
+/* SIDEBAR */
+.sidebar{position:fixed;left:0;top:52px;bottom:0;width:220px;background:rgba(7,7,16,.7);backdrop-filter:blur(16px);border-right:1px solid var(--border);padding:14px 10px;z-index:90;display:flex;flex-direction:column;overflow-y:auto}
+.nav-lbl{font-size:10px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:var(--text3);padding:10px 10px 5px;margin-top:4px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r);cursor:pointer;font-size:13px;color:var(--text2);transition:all .15s;border:1px solid transparent;white-space:nowrap}
+.nav-item:hover{background:var(--glass-h);color:var(--text)}
+.nav-item.active{background:var(--accent-g);color:var(--accent2);border-color:rgba(124,90,240,.2)}
+.nav-item svg{width:15px;height:15px;flex-shrink:0;stroke-width:1.8}
+
+/* MAIN */
+.main-wrap{margin-left:220px;margin-top:52px;min-height:calc(100vh - 52px);position:relative;z-index:1}
+.tab{display:none;padding:24px;animation:fadeUp .2s ease}
+.tab.active{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+
+/* LAYOUT */
+.ph{margin-bottom:20px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.ph h1{font-family:var(--fd);font-size:22px;font-weight:700;margin-bottom:3px}
+.ph p{font-size:13px;color:var(--text2)}
+.ph-right{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* CARDS */
+.card{background:var(--glass);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;transition:border-color .2s;margin-bottom:16px}
+.card:hover{border-color:var(--border-s)}
+.card:last-child{margin-bottom:0}
+.card-hd{padding:13px 18px 11px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.card-title{font-family:var(--fd);font-size:13px;font-weight:600}
+.card-bd{padding:18px}
+.card-bd-0{padding:0}
+
+/* METRICS */
+.metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(138px,1fr));gap:10px;margin-bottom:18px}
+.metric{background:var(--glass);border:1px solid var(--border);border-radius:var(--r2);padding:15px 16px;transition:all .2s}
+.metric:hover{background:var(--glass-h);border-color:var(--border-s)}
+.m-lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.9px;font-weight:600;margin-bottom:6px}
+.m-val{font-family:var(--fd);font-size:22px;font-weight:700;line-height:1;margin-bottom:3px}
+.m-sub{font-size:11.5px;color:var(--text2)}
+.cg{color:var(--green)}.cr{color:var(--red)}.ca{color:var(--amber)}.cp{color:var(--accent2)}.cb{color:var(--blue)}
+
+/* BADGES */
+.badge{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:12px}
+.bg{background:var(--green-g);color:#86efac}
+.br{background:var(--red-g);color:#fca5a5}
+.ba{background:var(--amber-g);color:#fcd34d}
+.bp{background:var(--accent-g);color:var(--accent2)}
+.bb{background:var(--blue-g);color:#93c5fd}
+
+/* SCORE BADGE */
+.sc-badge{display:inline-flex;align-items:center;justify-content:center;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;min-width:52px}
+.sc-pass{background:rgba(34,197,94,.15);color:var(--green)}
+.sc-warn{background:rgba(245,158,11,.15);color:var(--amber)}
+.sc-fail{background:rgba(239,68,68,.15);color:var(--red)}
+
+/* TABLES */
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl th{text-align:left;padding:9px 14px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--text3);border-bottom:1px solid var(--border);background:var(--bg1);white-space:nowrap}
+.tbl th.sortable{cursor:pointer;user-select:none}
+.tbl th.sortable:hover{color:var(--text)}
+.tbl tr.totals td{border-top:1px solid var(--border-s);font-weight:700;color:var(--text);background:var(--bg1)}
+.cfg-lbl{font-size:11px;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.8px}
+.tbl td{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.03);color:var(--text2);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:var(--glass);color:var(--text)}
+.tbl-wrap{overflow-x:auto}
+
+/* ALERTS */
+.alert{display:flex;align-items:flex-start;gap:10px;padding:11px 14px;border-radius:var(--r);font-size:12.5px;margin-bottom:12px;border-left:3px solid;line-height:1.55}
+.alert-w{background:rgba(245,158,11,.07);border-color:var(--amber);color:#fcd34d}
+.alert-d{background:rgba(239,68,68,.07);border-color:var(--red);color:#fca5a5}
+.alert-s{background:rgba(34,197,94,.07);border-color:var(--green);color:#86efac}
+.alert-i{background:rgba(124,90,240,.07);border-color:var(--accent);color:var(--accent2)}
+
+/* INPUTS */
+.inp{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:8px 12px;font-family:var(--f);font-size:13px;color:var(--text);outline:none;transition:border-color .2s;width:100%}
+.inp:focus{border-color:var(--accent)}
+.inp::placeholder{color:var(--text3)}
+.inp-sm{padding:6px 10px;font-size:12px}
+select.inp{cursor:pointer}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:300;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.show{opacity:1;pointer-events:all}
+.modal{background:var(--bg2);border:1px solid var(--border-s);border-radius:var(--r3);padding:28px;width:580px;max-width:96vw;max-height:88vh;overflow-y:auto}
+.modal h2{font-family:var(--fd);font-size:18px;font-weight:700;margin-bottom:6px}
+.modal-sub{color:var(--text2);font-size:13px;margin-bottom:20px}
+.modal label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:5px;margin-top:14px}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:22px;flex-wrap:wrap}
+
+/* WIZARD STEPS */
+.wiz-step{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r2);padding:16px;margin-bottom:10px}
+.wiz-step-hd{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.wiz-num{width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-family:var(--fd);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.wiz-num.done{background:var(--green)}
+.wiz-title{font-family:var(--fd);font-size:13px;font-weight:600}
+.code-block{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:12px;font-family:monospace;font-size:11.5px;color:var(--accent2);white-space:pre-wrap;word-break:break-all;max-height:160px;overflow-y:auto;margin:8px 0}
+.copy-btn{font-size:11px;padding:4px 10px;margin-top:4px}
+
+/* PROD BAR */
+.prod-bar-bg{height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;margin:6px 0}
+.prod-bar-fill{height:100%;border-radius:4px;transition:width .6s}
+
+/* MINS CARD */
+.mins-card{border-radius:var(--r2);padding:22px;text-align:center;margin-bottom:16px}
+.mins-card.missing{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2)}
+.mins-card.overtime{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2)}
+.mins-card.balanced{background:rgba(124,90,240,.08);border:1px solid rgba(124,90,240,.2)}
+.mins-val{font-family:var(--fd);font-size:44px;font-weight:800;line-height:1;margin-bottom:4px}
+.mins-lbl{font-size:13px;color:var(--text2)}
+
+/* HERO */
+.agent-hero{background:linear-gradient(135deg,rgba(124,90,240,.15),rgba(59,126,248,.08));border:1px solid rgba(124,90,240,.25);border-radius:20px;padding:26px 30px;margin-bottom:20px;display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+.agent-avatar{width:58px;height:58px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--fd);font-size:21px;font-weight:800;color:#fff;flex-shrink:0}
+.agent-hero-name{font-family:var(--fd);font-size:22px;font-weight:800}
+.agent-hero-id{font-size:13px;color:var(--text2);margin-top:3px}
+.agent-hero-score{margin-left:auto;text-align:right}
+.agent-hero-score .m-lbl{margin-bottom:4px}
+
+/* SYNC WIZARD */
+.sync-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+@media(max-width:640px){.sync-grid{grid-template-columns:1fr}}
+.sync-card{background:var(--glass);border:1px solid var(--border);border-radius:var(--r2);padding:14px}
+.sync-card h4{font-family:var(--fd);font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text)}
+
+/* SPINNER */
+.spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:rot .7s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* EMPTY */
+.empty{text-align:center;padding:48px 24px;color:var(--text3)}
+.empty svg{width:40px;height:40px;margin:0 auto 14px;opacity:.2}
+.empty h3{font-family:var(--fd);font-size:15px;color:var(--text2);margin-bottom:5px}
+.empty p{font-size:12.5px}
+
+/* CHARTS */
+.charts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:16px}
+
+/* TOAST */
+#toast{position:fixed;bottom:24px;right:24px;padding:10px 18px;border-radius:var(--r2);font-size:13px;z-index:999;display:none;animation:fadeUp .2s ease}
+
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:3px}
+
+@media(max-width:860px){
+  .sidebar{transform:translateX(-220px)}.main-wrap{margin-left:0}
+  .metrics-grid{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<!-- ═══════════════ LOGIN ═══════════════ -->
+<div class="screen active" id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">telda<span>~</span></div>
+    <div class="login-sub">Workforce Intelligence Platform</div>
+    <div class="login-tabs">
+      <button class="login-tab active" onclick="setMode('agent',this)">Agent</button>
+      <button class="login-tab" onclick="setMode('admin',this)">Admin</button>
+    </div>
+    <div class="login-form">
+      <div id="agentFields">
+        <input class="login-input" id="agentIdInp" type="text" placeholder="Your Agent ID" autocomplete="off" onkeydown="if(event.key==='Enter')doLogin()"/>
+        <div class="login-hint">Enter the ID assigned by your team lead</div>
+      </div>
+      <div id="adminFields" style="display:none">
+        <input class="login-input" id="adminPassInp" type="password" placeholder="Admin password" autocomplete="off" onkeydown="if(event.key==='Enter')doLogin()"/>
+      </div>
+      <div class="login-err" id="loginErr"></div>
+      <button class="login-btn" onclick="doLogin()">Enter Dashboard</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ ADMIN ═══════════════ -->
+<div class="screen" id="adminScreen">
+  <header class="topbar">
+    <div class="logo">telda<span>~</span><span style="font-size:11px;color:var(--text3);font-family:var(--f);font-weight:400;margin-left:6px">Admin</span></div>
+    <div class="topbar-right">
+      <div class="pill"><span class="dot dot-a" id="syncDot"></span><span id="syncStatus">Not synced</span></div>
+      <button class="btn" onclick="syncAll()"><span id="syncSpin" style="display:none" class="spin"></span> Sync</button>
+      <button class="btn btn-ghost" onclick="openConfig()">⚙ Configure</button>
+      <button class="btn" onclick="exportConfig()">⬇ Export</button>
+      <label class="btn" style="cursor:pointer">⬆ Import<input type="file" accept=".json" style="display:none" onchange="importConfig(this)"/></label>
+      <button class="btn btn-danger btn-sm" onclick="logout()">Logout</button>
+    </div>
+  </header>
+
+  <nav class="sidebar" id="adminNav">
+    <div class="nav-lbl">Overview</div>
+    <div class="nav-item active" onclick="aTab('overview',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard
+    </div>
+    <div class="nav-lbl">Reports</div>
+    <div class="nav-item" onclick="aTab('quality',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>Quality
+    </div>
+    <div class="nav-item" onclick="aTab('productivity',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Productivity
+    </div>
+    <div class="nav-item" onclick="aTab('performance',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Performance
+    </div>
+    <div class="nav-lbl">Management</div>
+    <div class="nav-item" onclick="aTab('agentids',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>Agent IDs
+    </div>
+    <div class="nav-item" onclick="aTab('exceptions',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Exceptions
+    </div>
+    <div class="nav-item" onclick="aTab('config',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Configuration
+    </div>
+    <div class="nav-item" onclick="aTab('setup',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M4.93 19.07l1.41-1.41M19.07 19.07l-1.41-1.41M1 12h4M19 12h4M12 1v4M12 19v4"/></svg>Setup Wizard
+    </div>
+  </nav>
+
+  <div class="main-wrap">
+    <!-- DASHBOARD -->
+    <section class="tab active" id="at-overview">
+      <div class="ph">
+        <div><h1>Operations Overview</h1><p id="overviewMeta">Sync data to begin</p></div>
+        <div class="ph-right">
+          <select class="inp inp-sm" id="adminMonth" onchange="renderOverview()" style="width:auto"></select>
+          <button class="btn btn-sm" onclick="toggleAgentFilter()">👥 Filter Agents</button>
+        </div>
+      </div>
+      <div id="agentFilterBar" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px 16px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;font-weight:700">Filter by Agent</span>
+          <button class="btn btn-sm" onclick="selectAllAgentFilters(true)">Select All</button>
+          <button class="btn btn-sm" onclick="selectAllAgentFilters(false)">Clear All</button>
+          <button class="btn btn-accent btn-sm" onclick="renderOverview()">Apply</button>
+        </div>
+        <div id="agentFilterList" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+      </div>
+      <div id="overviewContent"><div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><h3>No data yet</h3><p>Click Sync or go to Setup Wizard first</p></div></div>
+    </section>
+
+    <!-- QUALITY -->
+    <section class="tab" id="at-quality">
+      <div class="ph"><div><h1>Quality Scores</h1><p>All agents · all QA reviews</p></div></div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:10px 14px;margin-bottom:16px">
+        <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;font-weight:700;white-space:nowrap">Filter</span>
+        <input type="date" class="inp inp-sm" id="qualFrom" onchange="renderQuality()" style="width:130px"/>
+          <span style="color:var(--text3);font-size:12px">→</span>
+          <input type="date" class="inp inp-sm" id="qualTo" onchange="renderQuality()" style="width:130px"/>
+        <div style="position:relative">
+          <button class="btn btn-sm" onclick="openAgentPicker('qual',renderQuality)">👥 Agents <span id="qualAgentCount"></span></button>
+          <div id="qualAgentPickerDrop" style="display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:200;background:var(--bg2);border:1px solid var(--border-s);border-radius:var(--r2);padding:12px;min-width:260px;max-height:320px;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.4)">
+            <div style="display:flex;gap:6px;margin-bottom:10px">
+              <button class="btn btn-sm" onclick="pickAllAgents('qual',true,renderQuality)">All</button>
+              <button class="btn btn-sm" onclick="pickAllAgents('qual',false,renderQuality)">None</button>
+              <button class="btn btn-accent btn-sm" onclick="closeAgentPicker('qual');renderQuality()">Apply</button>
+              <button class="btn btn-sm" style="margin-left:auto" onclick="closeAgentPicker('qual')">✕</button>
+            </div>
+            <div id="qualAgentCheckboxes" style="display:flex;flex-direction:column;gap:6px"></div>
+          </div>
+        </div>
+        <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;font-weight:700;white-space:nowrap;margin-left:6px">Coach&nbsp;&lt;</span>
+        <input type="number" class="inp inp-sm" id="qualThreshold" value="90" min="0" max="100" style="width:64px;text-align:center" onchange="this.dataset.touched=1;QS.page=1;renderQuality()" title="Flag tickets scoring below this %"/>
+        <span style="font-size:12px;color:var(--text3)">%</span>
+        <select class="inp inp-sm" id="qualCoachedFilter" style="width:auto" onchange="QS.coachedFilter=this.value;QS.page=1;renderQuality()">
+          <option value="all">All tickets</option>
+          <option value="needs">Needs coaching</option>
+          <option value="coached">Coached</option>
+          <option value="pass">Passing</option>
+        </select>
+        <input type="text" class="inp inp-sm" id="qualSearch" placeholder="Search agent / ticket…" style="width:180px;margin-left:auto" oninput="QS.search=this.value;QS.page=1;renderQuality()"/>
+        <span id="qualPresets" style="display:inline-flex;gap:4px;flex-basis:100%"></span>
+      </div>
+      <div id="qualityContent"><div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87"/></svg><h3>No quality data</h3><p>Sync to load</p></div></div>
+    </section>
+
+    <!-- PRODUCTIVITY -->
+    <section class="tab" id="at-productivity">
+      <div class="ph"><div><h1>Productivity & Adherence</h1><p>Productive hours vs 7.8 hr/day target</p></div></div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:10px 14px;margin-bottom:16px">
+        <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;font-weight:700;white-space:nowrap">Filter</span>
+        <input type="date" class="inp inp-sm" id="prodFrom" onchange="renderProductivity()" style="width:130px"/>
+          <span style="color:var(--text3);font-size:12px">→</span>
+          <input type="date" class="inp inp-sm" id="prodTo" onchange="renderProductivity()" style="width:130px"/>
+        <div style="position:relative">
+          <button class="btn btn-sm" onclick="openAgentPicker('prod',renderProductivity)">👥 Agents <span id="prodAgentCount"></span></button>
+          <div id="prodAgentPickerDrop" style="display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:200;background:var(--bg2);border:1px solid var(--border-s);border-radius:var(--r2);padding:12px;min-width:260px;max-height:320px;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.4)">
+            <div style="display:flex;gap:6px;margin-bottom:10px">
+              <button class="btn btn-sm" onclick="pickAllAgents('prod',true,renderProductivity)">All</button>
+              <button class="btn btn-sm" onclick="pickAllAgents('prod',false,renderProductivity)">None</button>
+              <button class="btn btn-accent btn-sm" onclick="closeAgentPicker('prod');renderProductivity()">Apply</button>
+              <button class="btn btn-sm" style="margin-left:auto" onclick="closeAgentPicker('prod')">✕</button>
+            </div>
+            <div id="prodAgentCheckboxes" style="display:flex;flex-direction:column;gap:6px"></div>
+          </div>
+        </div>
+        <input type="text" class="inp inp-sm" id="prodSearch" placeholder="Search agent…" style="width:160px" oninput="renderProductivity()"/>
+        <span id="prodPresets" style="display:inline-flex;gap:4px;flex-basis:100%"></span>
+      </div>
+      <div id="productivityContent"><div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><h3>No adherence data</h3><p>Sync to load</p></div></div>
+    </section>
+
+    <!-- PERFORMANCE -->
+    <section class="tab" id="at-performance">
+      <div class="ph"><div><h1>Performance Metrics</h1><p>AHT · ART · CSAT · Resolution Rate</p></div></div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:10px 14px;margin-bottom:16px">
+        <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;font-weight:700;white-space:nowrap">Filter</span>
+        <input type="date" class="inp inp-sm" id="perfFrom" onchange="renderPerformance()" style="width:130px"/>
+          <span style="color:var(--text3);font-size:12px">→</span>
+          <input type="date" class="inp inp-sm" id="perfTo" onchange="renderPerformance()" style="width:130px"/>
+        <div style="position:relative">
+          <button class="btn btn-sm" onclick="openAgentPicker('perf',renderPerformance)">👥 Agents <span id="perfAgentCount"></span></button>
+          <div id="perfAgentPickerDrop" style="display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:200;background:var(--bg2);border:1px solid var(--border-s);border-radius:var(--r2);padding:12px;min-width:260px;max-height:320px;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.4)">
+            <div style="display:flex;gap:6px;margin-bottom:10px">
+              <button class="btn btn-sm" onclick="pickAllAgents('perf',true,renderPerformance)">All</button>
+              <button class="btn btn-sm" onclick="pickAllAgents('perf',false,renderPerformance)">None</button>
+              <button class="btn btn-accent btn-sm" onclick="closeAgentPicker('perf');renderPerformance()">Apply</button>
+              <button class="btn btn-sm" style="margin-left:auto" onclick="closeAgentPicker('perf')">✕</button>
+            </div>
+            <div id="perfAgentCheckboxes" style="display:flex;flex-direction:column;gap:6px"></div>
+          </div>
+        </div>
+        <input type="text" class="inp inp-sm" id="perfSearch" placeholder="Search agent…" style="width:160px" oninput="renderPerformance()"/>
+        <span id="perfPresets" style="display:inline-flex;gap:4px;flex-basis:100%"></span>
+      </div>
+      <div id="performanceContent"><div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="20" x2="18" y2="10"/></svg><h3>No performance data</h3><p>Sync to load</p></div></div>
+    </section>
+
+    <!-- AGENT IDs -->
+    <section class="tab" id="at-agentids">
+      <div class="ph"><div><h1>Agent ID Management</h1><p>Agents log in using their assigned ID</p></div><div class="ph-right"><button class="btn btn-accent" onclick="saveIds()">💾 Save All IDs</button></div></div>
+      <div class="alert alert-i">ℹ Agent names are pulled from the Quality sheet after sync. Assign each agent a unique ID — they'll use it to log in. IDs sync across devices via your Google Apps Script if configured.</div>
+      <div class="card"><div class="card-bd" id="idsEditor"><div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><h3>No agents found</h3><p>Sync quality data first</p></div></div></div>
+    </section>
+
+    <!-- EXCEPTIONS -->
+    <section class="tab" id="at-exceptions">
+      <div class="ph"><div><h1>Productivity Exceptions</h1><p>Exception minutes count as productive time</p></div></div>
+      <div class="card">
+        <div class="card-hd"><span class="card-title">Add Exception</span></div>
+        <div class="card-bd">
+          <div class="alert alert-i">ℹ Adding exception minutes increases an agent's productive time for that day, reducing their missing minutes. Exceptions reset view monthly alongside missing minutes.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 90px 1fr auto;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:14px">
+            <div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.8px">Agent</div>
+              <select class="inp" id="excAgent"><option value="">Select…</option></select>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.8px">Date</div>
+              <input type="date" class="inp" id="excDate"/>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.8px">Minutes</div>
+              <input type="number" class="inp" id="excMins" placeholder="0" min="1" max="468"/>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.8px">Reason</div>
+              <input type="text" class="inp" id="excReason" placeholder="e.g. Training session"/>
+            </div>
+            <button class="btn btn-accent" onclick="addException()">Add</button>
+          </div>
+          <div id="excList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONFIGURATION CENTER -->
+    <section class="tab" id="at-config">
+      <div class="ph"><div><h1>Configuration Center</h1><p>Classify AUX states and set productivity targets — changes apply instantly, no redeployment needed</p></div></div>
+
+      <div class="card">
+        <div class="card-hd"><span class="card-title">Required Productive Time Target</span></div>
+        <div class="card-bd">
+          <div class="alert alert-i">ℹ These baselines drive Achievement %, shift/overtime classification, QA pass/coaching flags and auto-sync across the whole dashboard. Change anytime — all calculations update immediately and sync to every device.</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px">
+            <div><div class="cfg-lbl">Required Productive Hrs / Day</div><input type="number" class="inp" id="cfgRequiredAvail" step="0.1" min="1" max="24"/></div>
+            <div><div class="cfg-lbl">Shift Minimum (hrs)</div><input type="number" class="inp" id="cfgShiftMin" step="0.5" min="0" max="24" title="Days below this productive count as overtime, not a shift"/></div>
+            <div><div class="cfg-lbl">QA Pass %</div><input type="number" class="inp" id="cfgQaPass" step="1" min="0" max="100"/></div>
+            <div><div class="cfg-lbl">QA Coaching Threshold %</div><input type="number" class="inp" id="cfgCoaching" step="1" min="0" max="100"/></div>
+            <div><div class="cfg-lbl">Auto-sync (minutes, 0=off)</div><input type="number" class="inp" id="cfgAutoSync" step="1" min="0" max="240"/></div>
+          </div>
+          <button class="btn btn-accent" onclick="saveTargets()">💾 Save Settings</button>
+          <label style="display:flex;align-items:center;gap:10px;margin-top:16px;padding:12px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r2);cursor:pointer">
+            <input type="checkbox" id="cfgHideProd" style="accent-color:var(--accent);width:16px;height:16px" onchange="saveTargets()"/>
+            <span>
+              <span style="font-size:13px;color:var(--text);font-weight:600">Hide productivity numbers</span>
+              <span style="display:block;font-size:11.5px;color:var(--text3);margin-top:2px">Hides the Productivity tab, productivity columns/charts on Overview, and the productivity section of each agent's dashboard — for both admins and agents.</span>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><span class="card-title">Performance Targets</span></div>
+        <div class="card-bd">
+          <div class="alert alert-i">ℹ Cells on the Performance tab and Overview turn green when they meet/beat target, red when they miss. AHT &amp; ART are "lower is better"; CSAT &amp; Resolution are "higher is better".</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px">
+            <div><div class="cfg-lbl">AHT Target (min, ≤)</div><input type="number" class="inp" id="cfgAhtTarget" step="0.1" min="0"/></div>
+            <div><div class="cfg-lbl">ART Target (sec, ≤)</div><input type="number" class="inp" id="cfgArtTarget" step="1" min="0"/></div>
+            <div><div class="cfg-lbl">CSAT Target (%, ≥)</div><input type="number" class="inp" id="cfgCsatTarget" step="1" min="0" max="100"/></div>
+            <div><div class="cfg-lbl">Resolution Target (%, ≥)</div><input type="number" class="inp" id="cfgResolutionTarget" step="1" min="0" max="100"/></div>
+          </div>
+          <button class="btn btn-accent" onclick="saveTargets()">💾 Save Targets</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <span class="card-title">AUX Classification</span>
+          <button class="btn btn-accent btn-sm" onclick="addAuxRow()">+ Add AUX</button>
+        </div>
+        <div class="card-bd">
+          <div class="alert alert-i">ℹ Every status_name seen in your Timeline sheet is listed below. Classify each as <strong>Available</strong> (counts toward both Available and Productive), <strong>Productive</strong>, or <strong>Non-Productive</strong>. New/unrecognized statuses are auto-added as Non-Productive when detected during sync — review and reclassify as needed.</div>
+          <div id="auxConfigList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SETUP WIZARD -->
+    <section class="tab" id="at-setup">
+      <div class="ph"><div><h1>Setup Wizard</h1><p>Connect Google Sheets and enable cross-device sync</p></div></div>
+
+      <!-- Step 1: Share sheets -->
+      <div class="wiz-step">
+        <div class="wiz-step-hd"><div class="wiz-num" id="wiz1num">1</div><div class="wiz-title">Share your Google Sheets (View access)</div></div>
+        <p style="font-size:13px;color:var(--text2);line-height:1.6">For each sheet: open it → click <strong style="color:var(--text)">Share</strong> → <strong style="color:var(--text)">Anyone with the link</strong> → <strong style="color:var(--text)">Viewer</strong>. Then copy the Sheet ID from the URL:<br><code style="color:var(--accent2);font-size:12px">docs.google.com/spreadsheets/d/<strong>[THIS PART]</strong>/edit</code></p>
+      </div>
+
+      <!-- Step 2: Sheet IDs -->
+      <div class="wiz-step">
+        <div class="wiz-step-hd"><div class="wiz-num" id="wiz2num">2</div><div class="wiz-title">Enter your Sheet IDs & tab names</div></div>
+        <div class="sync-grid">
+          <div class="sync-card">
+            <h4>📊 Quality Sheet</h4>
+            <label>Sheet ID</label><input class="inp inp-sm" id="cfgQId" placeholder="1BxiMVs0X…"/>
+            <label>Tab Name</label><input class="inp inp-sm" id="cfgQTab" value="Quality"/>
+          </div>
+          <div class="sync-card">
+            <h4>📈 Performance Sheet</h4>
+            <label>Sheet ID</label><input class="inp inp-sm" id="cfgPId" placeholder="1BxiMVs0X…"/>
+            <label>Tab Name</label><input class="inp inp-sm" id="cfgPTab" value="Performance"/>
+          </div>
+          <div class="sync-card">
+            <h4>🕐 Agent Status Timeline Sheet</h4>
+            <label>Sheet ID</label><input class="inp inp-sm" id="cfgAId" placeholder="1BxiMVs0X…"/>
+            <label>Tab Name</label><input class="inp inp-sm" id="cfgATab" value="Query result"/>
+            <label>Tab GID (optional, more reliable)</label><input class="inp inp-sm" id="cfgAGid" placeholder="e.g. 123456789"/>
+            <div style="font-size:11px;color:var(--text3);margin-top:4px">Raw AUX/status event log — replaces the old daily Adherence summary</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:4px">Find GID in the tab's URL: …#gid=123456789. If set, this is used instead of Tab Name.</div>
+          </div>
+          <div class="sync-card">
+            <h4>🔐 Admin Password</h4>
+            <label>Password</label><input class="inp inp-sm" id="cfgPass" type="password" placeholder="Set password…"/>
+            <div style="font-size:11.5px;color:var(--text3);margin-top:6px">Default: admin123</div>
+          </div>
+        </div>
+        <button class="btn btn-accent" onclick="saveSheetConfig()">Save Sheet Config</button>
+        <span id="sheetSaveStatus" style="font-size:12px;color:var(--green);margin-left:10px;display:none">✓ Saved</span>
+      </div>
+
+      <!-- Step 3: Apps Script -->
+      <div class="wiz-step">
+        <div class="wiz-step-hd"><div class="wiz-num" id="wiz3num">3</div><div class="wiz-title">Deploy Google Apps Script for cross-device sync <span class="badge bp" style="margin-left:6px">Optional but recommended</span></div></div>
+        <p style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:12px">This lets Agent IDs and Exceptions sync across all devices automatically — no backend needed, completely free.</p>
+
+        <div style="font-size:13px;color:var(--text);font-weight:600;margin-bottom:6px">① Open any of your Google Sheets → Extensions → Apps Script</div>
+        <div style="font-size:13px;color:var(--text);font-weight:600;margin-bottom:6px">② Delete all existing code and paste this:</div>
+        <div class="code-block" id="gasCode">// Loading…</div>
+        <button class="btn copy-btn" onclick="copyGAS()">📋 Copy Script</button>
+
+        <div style="font-size:13px;color:var(--text);font-weight:600;margin-top:14px;margin-bottom:6px">③ Click <strong>Deploy → New Deployment → Web App</strong></div>
+        <ul style="font-size:12.5px;color:var(--text2);line-height:2;margin-left:16px">
+          <li>Execute as: <strong style="color:var(--text)">Me</strong></li>
+          <li>Who has access: <strong style="color:var(--text)">Anyone</strong></li>
+          <li>Click <strong style="color:var(--text)">Deploy</strong> → Authorize → Copy the Web App URL</li>
+        </ul>
+
+        <div style="font-size:13px;color:var(--text);font-weight:600;margin-top:14px;margin-bottom:6px">④ Paste your Web App URL here:</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="inp" id="cfgGasUrl" placeholder="https://script.google.com/macros/s/…/exec" style="flex:1"/>
+          <button class="btn btn-accent" onclick="testGAS()"><span id="gasSpin" style="display:none" class="spin"></span> Test & Save</button>
+        </div>
+        <div id="gasStatus" style="font-size:12px;margin-top:8px"></div>
+      </div>
+
+      <!-- Step 4: Sync -->
+      <div class="wiz-step">
+        <div class="wiz-step-hd"><div class="wiz-num" id="wiz4num">4</div><div class="wiz-title">Sync data & assign Agent IDs</div></div>
+        <p style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:12px">Click Sync to pull all three sheets. Then go to <strong style="color:var(--text)">Agent IDs</strong> in the sidebar to assign IDs to each agent.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-accent" onclick="syncAll()">🔄 Sync Now</button>
+          <button class="btn" onclick="aTab('agentids', document.querySelector('[onclick*=agentids]'))">→ Go to Agent IDs</button>
+        </div>
+        <div id="setupSyncStatus" style="font-size:12px;color:var(--text2);margin-top:10px"></div>
+      </div>
+
+      <!-- Export/Import -->
+      <div class="wiz-step">
+        <div class="wiz-step-hd"><div class="wiz-num">5</div><div class="wiz-title">Export config for backup or other devices</div></div>
+        <p style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:12px">Export saves all your sheet IDs, agent IDs, and exceptions to a JSON file. Import it on any device to instantly restore settings.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-ghost" onclick="exportConfig()">⬇ Export Config</button>
+          <label class="btn" style="cursor:pointer">⬆ Import Config<input type="file" accept=".json" style="display:none" onchange="importConfig(this)"/></label>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- ═══════════════ AGENT ═══════════════ -->
+<div class="screen" id="agentScreen">
+  <header class="topbar">
+    <div class="logo">telda<span>~</span></div>
+    <div class="topbar-right">
+      <div class="pill"><span class="dot dot-g"></span><span id="agentNameBadge">—</span></div>
+      <button class="btn btn-danger btn-sm" onclick="logout()">Logout</button>
+    </div>
+  </header>
+  <div style="margin-top:52px;padding:24px;position:relative;z-index:1">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:12px 16px">
+      <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;font-weight:700">Date Range</span>
+      <input type="date" class="inp inp-sm" id="agentFrom" onchange="renderAgent()" style="width:140px"/>
+      <span style="color:var(--text3);font-size:12px">→</span>
+      <input type="date" class="inp inp-sm" id="agentTo" onchange="renderAgent()" style="width:140px"/>
+      <button class="btn btn-sm" onclick="setAgentDateRange('month')">This Month</button>
+      <button class="btn btn-sm" onclick="setAgentDateRange('week')">This Week</button>
+      <button class="btn btn-sm" onclick="setAgentDateRange('all')">All Time</button>
+    </div>
+    <div id="agentContent"><div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/></svg><h3>Loading…</h3></div></div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════
+// CONSTANTS
+// ════════════════════════════════════════
+// Required Available Time target — admin-configurable (seconds). Default 7.8h.
+function getRequiredAvailSecs() { return (S.cfgTargets.requiredAvailHrs || 7.8) * 3600; }
+const TARGET_SECS_LEGACY = 7.8 * 3600; // kept for any stray reference
+// PROD_COLS removed — productivity now uses total_logged_in_sec - total_break_sec - total_unavailable_sec
+
+// Debug helper — run debugAdherence("Agent Name") in browser console to inspect the math
+window.debugAdherence = function(name) {
+  const rows = S.aRows.filter(r => r.agent_name === name);
+  console.table(rows.map(r => ({
+    date: r.activity_date,
+    logged_in_hr: (r.total_logged_in_sec/3600).toFixed(2),
+    break_hr: (r.total_break_sec/3600).toFixed(2),
+    unavailable_hr: (r.total_unavailable_sec/3600).toFixed(2),
+    productive_hr: (prodSecs(r)/3600).toFixed(2),
+  })));
+};
+window.debugSync = function() {
+  console.log('Quality rows:', S.qRows.length, S.qRows[0]);
+  console.log('Performance rows:', S.pRows.length, S.pRows[0]);
+  console.log('Adherence rows:', S.aRows.length, S.aRows[0]);
+  console.log('Config:', cfg());
+};
+
+const GAS_SCRIPT = `function doGet(e) {
+  const action = e.parameter.action;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let configSheet = ss.getSheetByName('_telda_config');
+  if (!configSheet) {
+    configSheet = ss.insertSheet('_telda_config');
+    configSheet.appendRow(['key','value']);
+  }
+
+  if (action === 'read') {
+    const data = {};
+    const rows = configSheet.getDataRange().getValues();
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][0]) data[rows[i][0]] = rows[i][1];
+    }
+    return ContentService.createTextOutput(JSON.stringify({ok:true,data}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  if (action === 'write') {
+    const key   = e.parameter.key;
+    const value = e.parameter.value;
+    const rows  = configSheet.getDataRange().getValues();
+    let found   = false;
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][0] === key) {
+        configSheet.getRange(i+1, 2).setValue(value);
+        found = true; break;
+      }
+    }
+    if (!found) configSheet.appendRow([key, value]);
+    return ContentService.createTextOutput(JSON.stringify({ok:true}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({ok:false,error:'Unknown action'}))
+    .setMimeType(ContentService.MimeType.JSON);
+}`;
+
+// ════════════════════════════════════════
+// CONFIG DEFAULTS (admin-tunable via Config Center)
+// ════════════════════════════════════════
+const DEFAULT_TARGETS = {
+  requiredAvailHrs:    7.8,  // required PRODUCTIVE hours/day (key kept for back-compat)
+  shiftMinHrs:         6,    // productive < this ⇒ counts as OVERTIME, not a shift day
+  qaPassPct:           90,   // QA pass threshold
+  coachingPct:         90,   // QA coaching flag threshold
+  ahtTargetMin:        6,    // performance targets (lower is better for AHT/ART)
+  artTargetSec:        60,
+  csatTargetPct:       80,   // higher is better for CSAT/resolution
+  resolutionTargetPct: 85,
+};
+
+// ════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════
+const S = {
+  mode: null, agentId: null, agentName: null, adminPass: null,
+  qRows: [], pRows: [], aRows: [], tRows: [], // tRows = timeline/status log rows
+  agentIds: {}, exceptions: [], gasUrl: null,
+  auxConfig: {},      // { 'Available': 'Available'|'Productive'|'Non-Productive', ... }
+  cfgTargets: {...DEFAULT_TARGETS}, // admin-configurable targets
+  charts: {},
+};
+
+// Quality tab UI state (coaching, search, pagination) — coached marks persist in localStorage
+const QS = {
+  coached: new Set(JSON.parse(localStorage.getItem('coachedTickets')||'[]')),
+  page: 1, pageSize: 15, search: '', coachedFilter: 'all',
+};
+function qualThreshold(){ const el=document.getElementById('qualThreshold'); return el ? (parseFloat(el.value)||90) : 90; }
+function ticketKey(r){ return (r['Tickets Link']||'')+'|'+(r['Agent Name']||'')+'|'+(r['Timestamp']||''); }
+function toggleCoach(key){
+  if (QS.coached.has(key)) QS.coached.delete(key); else QS.coached.add(key);
+  localStorage.setItem('coachedTickets', JSON.stringify([...QS.coached]));
+  cloudSaveAll(); // sync coached state to all devices (admin password already in memory)
+  renderQuality();
+}
+
+// Default AUX classification — used only to seed the Config Center the first time.
+// Three classes: 'Available' (counts as Available AND Productive), 'Productive', 'Non-Productive'.
+const DEFAULT_AUX_CONFIG = {
+  'Available':'Available','On Call':'Available','Ready':'Available',
+  'Training':'Productive','Coaching':'Productive',
+  'Meeting':'Productive','Project Work':'Productive','Jira':'Productive','Emails':'Productive',
+  'Break':'Non-Productive','Personal':'Non-Productive','Unavailable':'Non-Productive',
+};
+
+// ════════════════════════════════════════
+// STORAGE
+// ════════════════════════════════════════
+const ls = {
+  get: k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set: (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch(e) { console.warn('localStorage quota exceeded for key:', k, e); return false; } },
+};
+
+function loadLocal() {
+  S.agentIds   = ls.get('t_ids')  || {};
+  S.exceptions = ls.get('t_exc')  || [];
+  S.gasUrl     = ls.get('t_gas')  || null;
+  S.auxConfig  = ls.get('t_aux')  || {...DEFAULT_AUX_CONFIG};
+  // Migration: a status literally named "Available" should use the new 'Available' class
+  // (older saved configs stored it as 'Productive', which would zero-out the Available metric).
+  Object.keys(S.auxConfig).forEach(k => {
+    if (k.toLowerCase() === 'available' && S.auxConfig[k] === 'Productive') S.auxConfig[k] = 'Available';
+  });
+  S.cfgTargets = {...DEFAULT_TARGETS, ...(ls.get('t_targets') || {})};
+  // Note: qRows/pRows/aRows/tRows are NOT cached in localStorage — they're large
+  // datasets re-fetched fresh from Google Sheets on every sync. Caching them
+  // risks exceeding the localStorage quota (5-10MB per site).
+}
+
+function cfg() { return ls.get('t_cfg') || {}; }
+
+// ════════════════════════════════════════
+// SUPABASE CONFIG BACKEND (zero-config, cross-device)
+// ════════════════════════════════════════
+// Config (sheet IDs, agent IDs, exceptions, AUX classification, targets) lives in one
+// Supabase row so every device auto-loads it — no Setup Wizard needed. Data still comes
+// from Google Sheets. Writes are gated by the admin password via SECURITY DEFINER RPCs.
+// ── PASTE YOUR SUPABASE PROJECT URL + ANON KEY BELOW ──
+const SUPABASE_URL      = 'https://zucferpmdriltuxvolmb.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp1Y2ZlcnBtZHJpbHR1eHZvbG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwODU3MjAsImV4cCI6MjA5NzY2MTcyMH0.tLxorDVryjWcMu37tDY-59SU7a_L5y6bDqNlswDea28'; // public anon key
+const SUPA_ON = () => /^https:\/\/.+\.supabase\.co/.test(SUPABASE_URL) && (SUPABASE_ANON_KEY||'').length > 20;
+const supaHeaders = (extra={}) => Object.assign({ apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }, extra);
+
+// Fetch with timeout + options — prevents sync from hanging forever if a server is slow
+function fetchWithTimeout(url, ms=8000, opts) {
+  return Promise.race([
+    fetch(url, opts),
+    new Promise((_,rej) => setTimeout(()=>rej(new Error('timeout')), ms))
+  ]);
+}
+
+// Read the shared config blob from Supabase
+async function cloudRead() {
+  if (!SUPA_ON()) return null;
+  try {
+    const r = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/app_config?id=eq.main&select=data`, 6000, { headers: supaHeaders() });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return (j && j[0] && j[0].data) ? j[0].data : null;
+  } catch(e) { console.warn('cloudRead failed:', e.message); return null; }
+}
+
+// Save the whole config blob (password-checked server-side)
+async function cloudSaveAll() {
+  if (!SUPA_ON() || !S.adminPass) return false;
+  try {
+    const data = { agentIds:S.agentIds, exceptions:S.exceptions, auxConfig:S.auxConfig, cfgTargets:S.cfgTargets, cfg:cfg(), coached:[...QS.coached] };
+    const r = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/rpc/save_config`, 8000, {
+      method:'POST', headers: supaHeaders({'Content-Type':'application/json'}),
+      body: JSON.stringify({ pw:S.adminPass, new_data:data })
+    });
+    if (!r.ok) return false;
+    return (await r.json()) === true;
+  } catch(e) { console.warn('cloudSave failed:', e.message); return false; }
+}
+
+// Verify admin password against Supabase. Returns true/false, or null if cloud unreachable.
+async function cloudVerify(pw) {
+  if (!SUPA_ON()) return null;
+  try {
+    const r = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/rpc/verify_admin`, 6000, {
+      method:'POST', headers: supaHeaders({'Content-Type':'application/json'}),
+      body: JSON.stringify({ pw })
+    });
+    if (!r.ok) return null;
+    return (await r.json()) === true;
+  } catch(e) { console.warn('cloudVerify failed:', e.message); return null; }
+}
+
+// Merge the cloud config into state + localStorage cache. (Names kept for existing call sites.)
+async function pullGASConfig() {
+  const data = await cloudRead();
+  if (!data) return;
+  if (data.agentIds)   { S.agentIds   = data.agentIds;   ls.set('t_ids', S.agentIds); }
+  if (data.exceptions) { S.exceptions = data.exceptions; ls.set('t_exc', S.exceptions); }
+  if (data.auxConfig)  { S.auxConfig  = data.auxConfig;  ls.set('t_aux', S.auxConfig); }
+  if (data.cfgTargets) { S.cfgTargets = {...DEFAULT_TARGETS, ...data.cfgTargets}; ls.set('t_targets', S.cfgTargets); }
+  if (data.cfg)        { ls.set('t_cfg', data.cfg); }
+  if (data.coached)    { QS.coached = new Set(data.coached); localStorage.setItem('coachedTickets', JSON.stringify(data.coached)); }
+}
+async function pushGASConfig() { return cloudSaveAll(); }
+// Back-compat shim: every per-key write now persists the full blob to Supabase.
+async function gasWrite(_key, _value) { return cloudSaveAll(); }
+
+// ════════════════════════════════════════
+// LOGIN
+// ════════════════════════════════════════
+let loginMode = 'agent';
+function setMode(m, btn) {
+  loginMode = m;
+  document.querySelectorAll('.login-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('agentFields').style.display = m==='agent'?'':'none';
+  document.getElementById('adminFields').style.display = m==='admin'?'':'none';
+  document.getElementById('loginErr').textContent = '';
+}
+
+async function doLogin() {
+  const err = document.getElementById('loginErr');
+  err.textContent = '';
+  loadLocal();
+
+  if (loginMode === 'admin') {
+    const pass = document.getElementById('adminPassInp').value.trim();
+    err.textContent = 'Checking…';
+    // Prefer Supabase verification; fall back to local password if cloud is unreachable.
+    const cloudOk = await cloudVerify(pass);
+    const ok = cloudOk === null ? (pass === (cfg().pass || 'admin123')) : cloudOk;
+    if (!ok) { err.textContent = 'Incorrect password.'; return; }
+    err.textContent = '';
+    S.mode = 'admin';
+    S.adminPass = pass; // kept in memory to authorize cloud saves this session
+    showScreen('adminScreen');
+    await pullGASConfig();
+    await syncAll(true);
+    buildMonthFilters();
+    refreshIdsEditor();
+    refreshExcAgents();
+    renderOverview();
+    applyProdVisibility();
+    document.getElementById('gasCode').textContent = GAS_SCRIPT;
+    loadWizardState();
+  } else {
+    const id = document.getElementById('agentIdInp').value.trim().toUpperCase();
+    if (!id) { err.textContent = 'Enter your Agent ID.'; return; }
+    // Cross-device: agent IDs may live only in Apps Script (not this device's localStorage).
+    // Pull the latest config before validating so a freshly-assigned ID works everywhere.
+    err.textContent = 'Checking…';
+    await pullGASConfig();
+    let name = Object.keys(S.agentIds).find(n => (S.agentIds[n]||'').toUpperCase() === id);
+    if (!name) {
+      // Last resort: a fresh sync auto-populates IDs from the Timeline sheet's agent_added_id column
+      await syncAll(true);
+      name = Object.keys(S.agentIds).find(n => (S.agentIds[n]||'').toUpperCase() === id);
+    }
+    err.textContent = '';
+    if (!name) { err.textContent = 'ID not found. Contact your team lead.'; return; }
+    S.mode = 'agent'; S.agentId = id; S.agentName = name;
+    document.getElementById('agentNameBadge').textContent = name;
+    showScreen('agentScreen');
+    await syncAll(true);
+    buildMonthFilters();
+    renderAgent();
+  }
+}
+
+function logout() {
+  S.mode = null; S.agentId = null; S.agentName = null;
+  document.getElementById('agentIdInp').value = '';
+  document.getElementById('adminPassInp').value = '';
+  showScreen('loginScreen');
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ════════════════════════════════════════
+// SYNC
+// ════════════════════════════════════════
+async function syncAll(silent=false) {
+  const c = cfg();
+  const dot  = document.getElementById('syncDot');
+  const spin = document.getElementById('syncSpin');
+  const stat = document.getElementById('syncStatus');
+  if (spin) spin.style.display = 'inline-block';
+  if (stat) stat.textContent = 'Syncing…';
+
+  const fetchSheet = async (id, tab, gid) => {
+    if (!id || (!tab && !gid)) return [];
+    const url = gid
+      ? `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&gid=${encodeURIComponent(gid)}`
+      : `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
+    try {
+      const res = await fetchWithTimeout(url, 10000);
+      if (!res.ok) { console.warn('Sheet fetch failed', tab||gid, res.status); return []; }
+      const txt = await res.text();
+      if (!txt || txt.trim().length < 5) { console.warn('Sheet fetch returned empty', tab||gid); return []; }
+      const parsed = await new Promise(r => Papa.parse(txt, {header:true, skipEmptyLines:true, complete: d=>r(d.data), error:()=>r([])}));
+      if (!parsed.length) console.warn('Sheet parsed but 0 rows — check tab name/gid:', tab||gid, url);
+      return parsed;
+    } catch (e) { console.warn('Sheet fetch error/timeout', tab||gid, e.message); return []; }
+  };
+
+  try {
+    const [q, p, t] = await Promise.all([
+      fetchSheet(c.qId, c.qTab),
+      fetchSheet(c.pId, c.pTab),
+      fetchSheet(c.tId || c.aId, c.tTab || c.aTab, c.tGid || c.aGid), // tId/tTab = Timeline sheet (replaces old Adherence)
+    ]);
+
+  // Quality — normalize agent name column
+  S.qRows = q.filter(r => (r['Agent Name']||r['agent_name']||'').trim())
+    .map(r => ({...r, 'Agent Name': (r['Agent Name']||r['agent_name']||r['Agent']||'').trim()}));
+
+  // Performance — normalize to new schema (used for AHT/ART/CSAT/resolution; NOT for login/logout anymore)
+  S.pRows = p.filter(r => (r['agent_name']||r['Agent Name']||'').trim())
+    .map(r => ({
+      agent_name:          (r['agent_name']||r['Agent Name']||'').trim(),
+      detected_shift:      r['detected_shift']||'',
+      work_date:           r['work_date']||r['date']||'',
+      first_hour:          r['first_hour']||'',
+      last_hour:           r['last_hour']||'',
+      active_spread_hrs:   r['active_spread_hrs']||'',
+      total_conversations: r['total_conversations']||'0',
+      resolution_rate_pct: r['resolution_rate_pct']||'0',
+      avg_aht_min:         r['avg_aht_min']||'0',
+      avg_art_sec:         r['avg_art_sec']||'0',
+      csat_pct:            r['csat_pct']||'0',
+      csat_rated_count:    r['csat_rated_count']||'0',
+      csat_positive_count: r['csat_positive_count']||'0',
+      dsat_count:          r['dsat_count']||'0',
+      total_tickets:       r['total_tickets']||'0',
+      resolved_tickets:    r['resolved_tickets']||'0',
+      pending_tickets:     r['pending_tickets']||'0',
+    }));
+
+  // Timeline (status log) — normalize raw event rows. AUX engine processes these below.
+  S.tRows = t.filter(r => (r['agent_name']||r['Agent Name']||'').trim())
+    .map(r => ({
+      log_id:        r['log_id']||'',
+      agent_added_id:(r['agent_added_id']||'').toString().trim(),
+      agent_name:    (r['agent_name']||r['Agent Name']||'').trim(),
+      activity_date: r['activity_date']||'',
+      status_name:   (r['status_name']||'').trim(),
+      status_start:  r['status_start']||'',
+      status_end:    r['status_end']||'',
+      duration_sec:  parseFloat(r['duration_sec']||0),
+      is_first_status_of_day: String(r['is_first_status_of_day'])==='1'||String(r['is_first_status_of_day']).toLowerCase()==='true',
+      is_last_status_of_day:  String(r['is_last_status_of_day'])==='1'||String(r['is_last_status_of_day']).toLowerCase()==='true',
+      chats_during_status: parseFloat(r['chats_during_status']||0),
+    }));
+
+  // Discover any AUX status_name not yet classified — auto-add as Non-Productive default so nothing is silently dropped
+  let auxUpdated = false;
+  S.tRows.forEach(r => {
+    if (r.status_name && !(r.status_name in S.auxConfig)) {
+      S.auxConfig[r.status_name] = 'Non-Productive';
+      auxUpdated = true;
+    }
+  });
+  if (auxUpdated) ls.set('t_aux', S.auxConfig);
+
+  // Auto-populate agent IDs from timeline's agent_added_id column
+  let idsUpdated = false;
+  S.tRows.forEach(r => {
+    if (r.agent_added_id && r.agent_name && !S.agentIds[r.agent_name]) {
+      S.agentIds[r.agent_name] = r.agent_added_id.toUpperCase();
+      idsUpdated = true;
+    }
+  });
+  if (idsUpdated) { ls.set('t_ids', S.agentIds); }
+
+  // Build the per-agent/per-date AUX summary (the actual productivity engine)
+  S.aRows = buildAuxSummary(S.tRows);
+
+  // qRows/pRows/tRows/aRows live only in memory (S.*) — not persisted to localStorage.
+  // They're cheap to refetch on every sync and avoid quota issues entirely.
+
+  const now = new Date();
+  if (stat) stat.textContent = `Synced ${now.toLocaleTimeString()}`;
+  if (spin) spin.style.display = 'none';
+  if (dot)  dot.style.background = 'var(--green)';
+
+  const ss = document.getElementById('setupSyncStatus');
+  if (ss) ss.textContent = `✓ Synced ${now.toLocaleTimeString()} — ${S.qRows.length} quality · ${S.tRows.length} timeline events (${S.aRows.length} agent-days) · ${S.pRows.length} performance`;
+
+  // Pull GAS config, then refresh all UI
+  await pullGASConfig();
+  buildMonthFilters();
+  refreshIdsEditor();
+  refreshExcAgents();
+  if (S.mode === 'admin') { renderOverview(); applyProdVisibility(); }
+  if (S.mode === 'agent') { renderAgent(); }
+  } catch (err) {
+    console.error('Sync failed:', err);
+    if (stat) stat.textContent = 'Sync error';
+    toast('Sync failed: ' + err.message, true);
+    const oc = document.getElementById('overviewContent');
+    if (oc && S.mode==='admin') oc.innerHTML = `<div class="alert alert-d">⚠ Sync error: ${err.message}. Open browser console (F12) and run <code>debugSync()</code> for details.</div>`;
+    const ac = document.getElementById('agentContent');
+    if (ac && S.mode==='agent') ac.innerHTML = `<div class="alert alert-d">⚠ Could not load your data. Please contact your admin.</div>`;
+  } finally {
+    if (spin) spin.style.display = 'none';
+  }
+}
+
+// ════════════════════════════════════════
+// CONFIG
+// ════════════════════════════════════════
+function openConfig() { aTab('setup', document.querySelector('#adminNav .nav-item:last-child')); }
+
+function saveSheetConfig() {
+  const c = cfg();
+  ls.set('t_cfg', {
+    ...c,
+    qId:  document.getElementById('cfgQId').value.trim(),
+    qTab: document.getElementById('cfgQTab').value.trim()||'Quality',
+    pId:  document.getElementById('cfgPId').value.trim(),
+    pTab: document.getElementById('cfgPTab').value.trim()||'Performance',
+    aId:  document.getElementById('cfgAId').value.trim(),
+    aTab: document.getElementById('cfgATab').value.trim()||'Query result',
+    aGid: document.getElementById('cfgAGid').value.trim(),
+    pass: document.getElementById('cfgPass').value.trim()||c.pass||'admin123',
+  });
+  const st = document.getElementById('sheetSaveStatus');
+  st.style.display='inline';
+  setTimeout(()=>st.style.display='none',2500);
+  cloudSaveAll().then(ok=>toast(`Sheet config saved ${ok?'✓ synced to all devices':'✓ (local)'}`));
+}
+
+async function testGAS() {
+  const url = document.getElementById('cfgGasUrl').value.trim();
+  if (!url) { toast('Paste your Web App URL first', true); return; }
+  const spin = document.getElementById('gasSpin');
+  const stat = document.getElementById('gasStatus');
+  spin.style.display='inline-block';
+  stat.textContent='Testing connection…';
+  stat.style.color='var(--text2)';
+  try {
+    const r = await fetch(`${url}?action=read`);
+    const j = await r.json();
+    if (j.ok) {
+      S.gasUrl = url; ls.set('t_gas', url);
+      stat.textContent='✓ Connected! Cross-device sync is active.';
+      stat.style.color='var(--green)';
+      document.getElementById('wiz3num').classList.add('done');
+      toast('Apps Script connected ✓');
+      await pushGASConfig();
+    } else throw new Error('bad response');
+  } catch {
+    stat.textContent='✗ Could not connect. Check the URL and make sure the deployment is set to "Anyone".';
+    stat.style.color='var(--red)';
+  }
+  spin.style.display='none';
+}
+
+function copyGAS() {
+  navigator.clipboard.writeText(GAS_SCRIPT).then(()=>toast('Copied to clipboard ✓'));
+}
+
+function loadWizardState() {
+  const c = cfg();
+  if (c.qId) document.getElementById('cfgQId').value = c.qId;
+  if (c.qTab) document.getElementById('cfgQTab').value = c.qTab;
+  if (c.pId) document.getElementById('cfgPId').value = c.pId;
+  if (c.pTab) document.getElementById('cfgPTab').value = c.pTab;
+  if (c.aId) document.getElementById('cfgAId').value = c.aId;
+  if (c.aTab) document.getElementById('cfgATab').value = c.aTab;
+  if (c.aGid) document.getElementById('cfgAGid').value = c.aGid;
+  if (S.gasUrl) document.getElementById('cfgGasUrl').value = S.gasUrl;
+  document.getElementById('gasCode').textContent = GAS_SCRIPT;
+  if (c.qId && c.pId && c.aId) document.getElementById('wiz2num').classList.add('done');
+  if (S.gasUrl) document.getElementById('wiz3num').classList.add('done');
+}
+
+// Export / Import config
+function exportConfig() {
+  const data = {
+    cfg: cfg(),
+    agentIds: S.agentIds,
+    exceptions: S.exceptions,
+    gasUrl: S.gasUrl,
+    exportedAt: new Date().toISOString(),
+  };
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'telda-config.json';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  toast('Config exported ✓');
+}
+
+function importConfig(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.cfg)        ls.set('t_cfg', data.cfg);
+      if (data.agentIds)   { S.agentIds   = data.agentIds;   ls.set('t_ids', S.agentIds); }
+      if (data.exceptions) { S.exceptions = data.exceptions; ls.set('t_exc', S.exceptions); }
+      if (data.gasUrl)     { S.gasUrl = data.gasUrl;         ls.set('t_gas', S.gasUrl); }
+      toast('Config imported ✓ — refresh to apply');
+      loadWizardState();
+      refreshIdsEditor();
+      refreshExcAgents();
+    } catch { toast('Invalid config file', true); }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+// ════════════════════════════════════════
+// MONTH FILTERS
+// ════════════════════════════════════════
+function buildMonthFilters() {
+  const months = new Set();
+  S.qRows.forEach(r => { const d=parseDate(r['Timestamp']); if(d) months.add(ym(d)); });
+  S.aRows.forEach(r => { const d=parseDate(r['activity_date']); if(d) months.add(ym(d)); });
+  const sorted = [...months].sort().reverse();
+  ['adminMonth','agentMonth'].forEach(id => {
+    const el = document.getElementById(id); if(!el) return;
+    const cur = el.value;
+    el.innerHTML = `<option value="">All Time</option>` + sorted.map(m=>`<option value="${m}">${fmtMonth(m)}</option>`).join('');
+    if (sorted[0]) el.value = cur || sorted[0];
+  });
+}
+
+function ym(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+function fmtMonth(s) { const [y,m]=s.split('-'); return new Date(+y,+m-1,1).toLocaleString('default',{month:'long',year:'numeric'}); }
+function inMonth(dateStr, mk) { if(!mk) return true; const d=parseDate(dateStr); return d?ym(d)===mk:false; }
+function parseDate(s) { if(!s) return null; const d=new Date(s); return isNaN(d)?null:d; }
+function getMonth(id) { const el=document.getElementById(id); return el?el.value:''; }
+
+// ════════════════════════════════════════
+// AUX ENGINE — builds per-agent/per-date summaries from raw Timeline events
+// ════════════════════════════════════════
+// Rules (locked spec):
+//  1. Total Logged Duration = last_status_of_day.start − first_status_of_day.start
+//  2. Last open status of day (status_end blank) → label EOS, duration excluded (0) from totals
+//  3. All other rows: duration = next_status.start − this_status.start (fallback to sheet's duration_sec)
+//  4. status_category is ignored entirely — classification comes only from S.auxConfig by status_name
+//  5. Validation: SUM(durations) vs Total Logged Duration → flag discrepancy
+function buildAuxSummary(tRows) {
+  // group by agent+date
+  const groups = {};
+  tRows.forEach(r => {
+    const key = r.agent_name + '|' + (r.activity_date instanceof Date ? r.activity_date.toISOString().slice(0,10) : String(r.activity_date).slice(0,10));
+    (groups[key] = groups[key] || []).push(r);
+  });
+
+  const summaries = [];
+  for (const key in groups) {
+    const events = groups[key].slice().sort((a,b) => new Date(a.status_start) - new Date(b.status_start));
+    if (!events.length) continue;
+    const first = events.find(e=>e.is_first_status_of_day) || events[0];
+    const last  = events.find(e=>e.is_last_status_of_day)  || events[events.length-1];
+
+    const firstStart = new Date(first.status_start);
+    const lastStart   = new Date(last.status_start);
+    const totalLoggedSec = (!isNaN(firstStart) && !isNaN(lastStart)) ? Math.max(0,(lastStart-firstStart)/1000) : 0;
+
+    // per-event duration: next.start - this.start, except EOS row (excluded/0)
+    const auxTotals = {}; // status_name -> seconds
+    let sumAll = 0;
+    events.forEach((e, i) => {
+      let dur;
+      const isEOS = (e === last) && !e.status_end;
+      if (isEOS) {
+        dur = 0; // Rule 2: EOS row excluded from totals
+      } else if (i < events.length-1) {
+        dur = Math.max(0, (new Date(events[i+1].status_start) - new Date(e.status_start))/1000);
+      } else {
+        dur = e.duration_sec || 0; // last row but has explicit status_end
+      }
+      auxTotals[e.status_name] = (auxTotals[e.status_name]||0) + dur;
+      sumAll += dur;
+    });
+
+    // Classify using admin config (Config Center). Three classes:
+    //   'Available'     → counts toward BOTH Available and Productive
+    //   'Productive'    → counts toward Productive only
+    //   'Non-Productive'→ neither
+    let availableSec=0, productiveSec=0, nonProductiveSec=0;
+    Object.keys(auxTotals).forEach(name => {
+      const cls = S.auxConfig[name] || 'Non-Productive';
+      if (cls === 'Available')      { availableSec += auxTotals[name]; productiveSec += auxTotals[name]; }
+      else if (cls === 'Productive'){ productiveSec += auxTotals[name]; }
+      else                          { nonProductiveSec += auxTotals[name]; }
+    });
+
+    const discrepancySec = Math.round(totalLoggedSec - sumAll);
+
+    summaries.push({
+      agent_name: first.agent_name,
+      activity_date: first.activity_date,
+      total_logged_sec: totalLoggedSec,
+      available_sec: availableSec,
+      productive_sec: productiveSec,
+      non_productive_sec: nonProductiveSec,
+      discrepancy_sec: discrepancySec,
+      aux_totals: auxTotals,
+      events,
+    });
+  }
+  return summaries;
+}
+
+// Debug helper — run debugData() in console
+function debugData() {
+  console.log('Quality rows:', S.qRows.length, S.qRows[0]);
+  console.log('Timeline rows:', S.tRows.length, S.tRows[0]);
+  console.log('Agent-day summaries:', S.aRows.length, S.aRows[0]);
+  console.log('Performance rows:', S.pRows.length, S.pRows[0]);
+  console.log('AUX Config:', S.auxConfig);
+  console.log('Targets:', S.cfgTargets);
+}
+window.debugAuxNames = function() {
+  const names = [...new Set(S.tRows.map(r=>r.status_name))].sort();
+  console.log('Distinct status_name values found in Timeline data:');
+  names.forEach(n => console.log(`  "${n}"`));
+  console.log('Current AUX config:', S.auxConfig);
+  return names;
+};
+window.debugRawTimeline = async function() {
+  const c = cfg();
+  console.log('Config being used for Timeline fetch:', {tId:c.tId, aId:c.aId, tTab:c.tTab, aTab:c.aTab, tGid:c.tGid, aGid:c.aGid});
+  const id  = c.tId || c.aId;
+  const tab = c.tTab || c.aTab;
+  const gid = c.tGid || c.aGid;
+  const url = gid
+    ? `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&gid=${encodeURIComponent(gid)}`
+    : `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
+  console.log('Fetching URL:', url);
+  const res = await fetch(url);
+  const txt = await res.text();
+  console.log('Raw CSV first 500 chars:', txt.slice(0,500));
+  const parsed = await new Promise(r => Papa.parse(txt, {header:true, skipEmptyLines:true, complete: d=>r(d), error:()=>r(null)}));
+  console.log('Parsed column names:', parsed.meta.fields);
+  console.log('First parsed row:', parsed.data[0]);
+  return parsed;
+};
+window.debugAdherence = function(name) {
+  const rows = S.aRows.filter(r=>r.agent_name===name);
+  console.table(rows.map(r => ({
+    date: r.activity_date,
+    logged_hr: (r.total_logged_sec/3600).toFixed(2),
+    available_hr: (r.available_sec/3600).toFixed(2),
+    productive_hr: (r.productive_sec/3600).toFixed(2),
+    nonproductive_hr: (r.non_productive_sec/3600).toFixed(2),
+    discrepancy_min: (r.discrepancy_sec/60).toFixed(1),
+  })));
+};
+
+// ════════════════════════════════════════
+// PRODUCTIVITY / AVAILABILITY CALCULATIONS
+// ════════════════════════════════════════
+function calcProdRange(name, from, to) {
+  const rows = S.aRows.filter(r => {
+    if (r.agent_name.trim() !== name.trim()) return false;
+    if (!from && !to) return true;
+    const d = parseDate(r.activity_date); if (!d) return false;
+    if (from && d < new Date(from)) return false;
+    if (to   && d > new Date(to))   return false;
+    return true;
+  });
+  if (!rows.length) return null;
+  return aggregateAuxRows(rows, name, from, to);
+}
+
+function calcProd(name, mk) {
+  const rows = S.aRows.filter(r => r.agent_name && r.agent_name.trim()===name.trim() && inMonth(r.activity_date,mk));
+  if (!rows.length) return null;
+  return aggregateAuxRows(rows, name, '', '', mk);
+}
+
+function aggregateAuxRows(rows, name, from, to, mk) {
+  const reqSecs   = getRequiredAvailSecs();
+  const shiftSecs = (S.cfgTargets.shiftMinHrs || 6) * 3600;
+  let totLogged=0, totAvail=0, totProductive=0, totNonProductive=0, totDiscrepancy=0, totTarget=0;
+  let shiftDays=0, overtimeDays=0, overtimeSec=0;
+  const auxTotals = {}; // status_name -> seconds (across the range)
+  rows.forEach(r => {
+    totLogged += r.total_logged_sec;
+    totAvail  += r.available_sec;
+    totProductive += r.productive_sec;
+    totNonProductive += r.non_productive_sec;
+    totDiscrepancy += r.discrepancy_sec;
+    // Shift vs overtime: a day with productive >= shiftMin is a real shift (adds to target);
+    // a day below it (e.g. 1–2h) is OVERTIME — it doesn't add to target or count as a shift.
+    if (r.productive_sec >= shiftSecs) { totTarget += reqSecs; shiftDays++; }
+    else { overtimeDays++; overtimeSec += r.productive_sec; }
+    if (r.aux_totals) Object.keys(r.aux_totals).forEach(k => auxTotals[k]=(auxTotals[k]||0)+r.aux_totals[k]);
+  });
+  const excMins = S.exceptions
+    .filter(e => {
+      if (e.agent!==name) return false;
+      if (mk) return inMonth(e.date, mk);
+      if (!from && !to) return true;
+      const d=parseDate(e.date); if(!d) return false;
+      if (from && d<new Date(from)) return false;
+      if (to   && d>new Date(to))   return false;
+      return true;
+    })
+    .reduce((s,e)=>s+(parseInt(e.minutes)||0),0);
+  // Achievement is PRODUCTIVE-based: all productive time (incl. overtime days) + admin exceptions.
+  const achievedSec = totProductive + excMins*60;
+  const diff = Math.round((achievedSec-totTarget)/60); // missing/overtime vs target (shift days only)
+  const pct  = totTarget>0 ? Math.round(achievedSec/totTarget*100) : (achievedSec>0?200:0);
+  return {
+    days: shiftDays, allDays: rows.length, overtimeDays, overtimeSec,
+    totLogged, totAvail, totProductive, totNonProductive, totDiscrepancy,
+    totTarget, diff, excMins, auxTotals,
+    achievedSec, pct: Math.min(200,pct),
+    // legacy field names kept for compatibility with existing render code
+    totProd: achievedSec,
+  };
+}
+
+// ════════════════════════════════════════
+// QUALITY
+// ════════════════════════════════════════
+function getScore(r) {
+  const raw = r['Final score']||r['Final Score']||r['Score']||'';
+  const n   = parseFloat(String(raw).replace('%','').replace(',','.'));
+  return isNaN(n)?null:n;
+}
+
+function calcQuality(name, mk) {
+  const rows   = S.qRows.filter(r=>r['Agent Name']===name && inMonth(r['Timestamp'],mk));
+  if (!rows.length) return null;
+  const scores = rows.map(getScore).filter(s=>s!==null);
+  if (!scores.length) return null;
+  const avg    = scores.reduce((a,b)=>a+b,0)/scores.length;
+  return { avg:+avg.toFixed(1), total:rows.length, passing:scores.filter(s=>s>=90).length, scores, rows };
+}
+
+function scoreCls(s) { return s===null?'':s>=90?'sc-pass':s>=80?'sc-warn':'sc-fail'; }
+
+// ════════════════════════════════════════
+// PERFORMANCE
+// ════════════════════════════════════════
+function getAgentPerfRows(name, fromDate, toDate) {
+  return S.pRows.filter(r => {
+    if (r['agent_name'] !== name) return false;
+    const d = r['work_date'] ? new Date(r['work_date']) : null;
+    if (!d || isNaN(d)) return true;
+    if (fromDate && d < new Date(fromDate)) return false;
+    if (toDate   && d > new Date(toDate))   return false;
+    return true;
+  });
+}
+function aggPerf(rows) {
+  if (!rows.length) return null;
+  const sum = (k) => rows.reduce((s,r)=>s+(parseFloat(r[k])||0),0);
+  const avg = (k) => rows.length ? sum(k)/rows.length : 0;
+  const n = rows.length;
+  return {
+    total_conversations: sum('total_conversations'),
+    total_tickets:       sum('total_tickets'),
+    resolved_tickets:    sum('resolved_tickets'),
+    avg_aht_min:         (avg('avg_aht_min')).toFixed(1),
+    avg_art_sec:         (avg('avg_art_sec')).toFixed(0),
+    csat_pct:            (avg('csat_pct')).toFixed(1),
+    csat_rated_count:    sum('csat_rated_count'),
+    csat_positive_count: sum('csat_positive_count'),
+    dsat_count:          sum('dsat_count'),
+    resolution_rate_pct: (avg('resolution_rate_pct')).toFixed(1),
+    rows: rows,
+  };
+}
+// legacy compat
+function getPerfRow(name) { const r=getAgentPerfRows(name,'',''); return r.length?aggPerf(r):null; }
+
+// ════════════════════════════════════════
+// ALL AGENT NAMES
+// ════════════════════════════════════════
+function allAgents() {
+  return [...new Set([
+    ...S.qRows.map(r=>r['Agent Name']),
+    ...S.pRows.map(r=>r['agent_name']),
+    ...S.tRows.map(r=>r.agent_name),
+  ].filter(Boolean))].sort();
+}
+
+// ════════════════════════════════════════
+// ADMIN TABS
+// ════════════════════════════════════════
+function aTab(id, el) {
+  document.querySelectorAll('#adminScreen .tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('#adminNav .nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById(`at-${id}`).classList.add('active');
+  if (el) el.classList.add('active');
+  if (id==='quality')      renderQuality();
+  if (id==='productivity') renderProductivity();
+  if (id==='performance')  renderPerformance();
+  if (id==='exceptions')   renderExcList();
+  if (id==='config')       renderConfigCenter();
+}
+
+// ════════════════════════════════════════
+// CONFIGURATION CENTER — AUX classification + targets
+// ════════════════════════════════════════
+function renderConfigCenter() {
+  const t = S.cfgTargets;
+  const set = (id,v)=>{ const e=document.getElementById(id); if(e) e.value=v; };
+  set('cfgRequiredAvail', t.requiredAvailHrs ?? 7.8);
+  set('cfgShiftMin',      t.shiftMinHrs ?? 6);
+  set('cfgQaPass',        t.qaPassPct ?? 90);
+  set('cfgCoaching',      t.coachingPct ?? 90);
+  set('cfgAutoSync',      t.autoSyncMins ?? 10);
+  set('cfgAhtTarget',     t.ahtTargetMin ?? 6);
+  set('cfgArtTarget',     t.artTargetSec ?? 60);
+  set('cfgCsatTarget',    t.csatTargetPct ?? 80);
+  set('cfgResolutionTarget', t.resolutionTargetPct ?? 85);
+  const hideInp = document.getElementById('cfgHideProd');
+  if (hideInp) hideInp.checked = !!t.hideProductivity;
+  renderAuxConfigList();
+}
+
+// True when admin has chosen to hide productivity from all dashboards
+function prodHidden() { return !!S.cfgTargets.hideProductivity; }
+
+// Show/hide the Productivity nav item based on the toggle
+function applyProdVisibility() {
+  document.querySelectorAll('[onclick*="productivity"]').forEach(el => {
+    if (el.classList.contains('nav-item')) el.style.display = prodHidden() ? 'none' : '';
+  });
+}
+
+function renderAuxConfigList() {
+  const el = document.getElementById('auxConfigList');
+  if (!el) return;
+  const names = Object.keys(S.auxConfig).sort();
+  if (!names.length) { el.innerHTML = emptyHtml('No AUX states yet','Sync Timeline data or add one manually'); return; }
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 180px 80px;gap:8px;padding:0 0 10px;border-bottom:1px solid var(--border);margin-bottom:8px">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px">AUX / Status Name</div>
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px">Classification</div>
+      <div></div>
+    </div>
+    ${names.map(n => `
+    <div style="display:grid;grid-template-columns:1fr 180px 80px;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.03)" data-aux-row="${n}">
+      <input class="inp inp-sm" value="${n}" disabled style="color:var(--text);opacity:.8"/>
+      <select class="inp inp-sm" data-aux-select="${n}">
+        <option value="Available" ${S.auxConfig[n]==='Available'?'selected':''}>Available</option>
+        <option value="Productive" ${S.auxConfig[n]==='Productive'?'selected':''}>Productive</option>
+        <option value="Non-Productive" ${S.auxConfig[n]==='Non-Productive'?'selected':''}>Non-Productive</option>
+      </select>
+      <button class="btn btn-danger btn-sm" onclick="removeAuxRow('${n.replace(/'/g,"\\\\'")}')">Remove</button>
+    </div>`).join('')}
+    <button class="btn btn-accent btn-sm" style="margin-top:14px" onclick="saveAuxConfig()">💾 Save AUX Classification</button>`;
+}
+
+function addAuxRow() {
+  const name = prompt('Enter the exact AUX / status_name (must match the Timeline sheet exactly):');
+  if (!name || !name.trim()) return;
+  S.auxConfig[name.trim()] = 'Non-Productive';
+  renderAuxConfigList();
+  toast(`Added "${name.trim()}" — set classification and click Save`);
+}
+
+function removeAuxRow(name) {
+  delete S.auxConfig[name];
+  renderAuxConfigList();
+}
+
+async function saveAuxConfig() {
+  document.querySelectorAll('[data-aux-select]').forEach(sel => {
+    S.auxConfig[sel.dataset.auxSelect] = sel.value;
+  });
+  ls.set('t_aux', S.auxConfig);
+  await gasWrite('auxConfig', S.auxConfig);
+  // Recompute AUX summary with new classification
+  if (S.tRows.length) S.aRows = buildAuxSummary(S.tRows);
+  toast('AUX classification saved ✓ — recalculated');
+  if (S.mode==='admin') renderOverview();
+}
+
+async function saveTargets() {
+  const num = (id, def) => { const v=parseFloat((document.getElementById(id)||{}).value); return isNaN(v)?def:v; };
+  const val = num('cfgRequiredAvail', 0);
+  if (!val || val<=0) { toast('Enter a valid number of hours', true); return; }
+  const t = S.cfgTargets;
+  t.requiredAvailHrs    = val;
+  t.shiftMinHrs         = num('cfgShiftMin', 6);
+  t.qaPassPct           = num('cfgQaPass', 90);
+  t.coachingPct         = num('cfgCoaching', 90);
+  t.autoSyncMins        = num('cfgAutoSync', 10);
+  t.ahtTargetMin        = num('cfgAhtTarget', 6);
+  t.artTargetSec        = num('cfgArtTarget', 60);
+  t.csatTargetPct       = num('cfgCsatTarget', 80);
+  t.resolutionTargetPct = num('cfgResolutionTarget', 85);
+  const hideInp = document.getElementById('cfgHideProd');
+  t.hideProductivity = hideInp ? hideInp.checked : false;
+  ls.set('t_targets', t);
+  const ok = await cloudSaveAll();
+  toast(`Settings saved ${ok?'✓ synced':'(local only)'}${t.hideProductivity?' · productivity hidden':''}`, !ok && SUPA_ON());
+  applyProdVisibility();
+  startAutoSync();
+  if (S.mode==='admin') renderOverview();
+}
+
+// ════════════════════════════════════════
+// ADMIN OVERVIEW
+// ════════════════════════════════════════
+function renderOverview() {
+  const mk = getMonth('adminMonth');
+  const _allAgents = allAgents();
+  const _sel = getSelectedAgents();
+  const agents = _sel.length ? _allAgents.filter(a=>_sel.includes(a)) : _allAgents;
+  if (!agents.length) { document.getElementById('overviewContent').innerHTML=emptyHtml('No data','Sync your sheets first'); return; }
+  document.getElementById('overviewMeta').textContent = `${agents.length} agents · ${mk?fmtMonth(mk):'All Time'}`;
+  const hp = prodHidden();
+
+  let totTickets=0, allScores=[], totMissing=0;
+  agents.forEach(a=>{
+    const q=calcQuality(a,mk); const p=calcProd(a,mk);
+    if(q){ totTickets+=q.total; allScores.push(...q.scores); }
+    if(p&&p.diff<0) totMissing+=Math.abs(p.diff);
+  });
+  const avgQ = allScores.length?(allScores.reduce((a,b)=>a+b,0)/allScores.length).toFixed(1):'—';
+  const pass  = allScores.length?Math.round(allScores.filter(s=>s>=90).length/allScores.length*100):null;
+
+  const T = S.cfgTargets;
+  const rows = agents.map(a=>{
+    const q=calcQuality(a,mk), p=calcProd(a,mk), perf=getPerfRow(a);
+    const s=q?q.avg:null;
+    const diffLabel=p?(p.diff<0?`<span class="cr">-${Math.abs(p.diff)}m</span>`:`<span class="cg">+${p.diff}m</span>`):'—';
+    return `<tr>
+      <td><strong style="color:var(--text)">${a}</strong><br><span style="font-size:11px;color:var(--text3)">${state_agentId(a)}</span></td>
+      <td>${q?q.total:'—'}</td>
+      <td>${s!==null?`<span class="sc-badge ${scoreCls(s)}">${s}%</span>`:'—'}</td>
+      <td class="${perf?targetClass(perf.avg_aht_min,T.ahtTargetMin,'low'):''}">${perf?perf.avg_aht_min+' min':'—'}</td>
+      <td class="${perf?targetClass(perf.avg_art_sec,T.artTargetSec,'low'):''}">${perf?perf.avg_art_sec+'s':'—'}</td>
+      <td class="${perf?targetClass(perf.csat_pct,T.csatTargetPct,'high'):''}">${perf?perf.csat_pct+'%':'—'}</td>
+      ${hp?'':`<td>${p?`<span style="color:${p.pct>=100?'var(--green)':'var(--amber)'}">${p.pct}%</span>`:'—'}</td>
+      <td>${diffLabel}</td>`}
+    </tr>`;
+  }).join('');
+
+  // ── Chart datasets (per agent) ──
+  const cData = agents.map(a => {
+    const q=calcQuality(a,mk), p=calcProd(a,mk), perf=getPerfRow(a);
+    return { a, qa:q?q.avg:null, prod:p?p.pct:null, csat:perf?parseFloat(perf.csat_pct):null, aht:perf?parseFloat(perf.avg_aht_min):null };
+  });
+  const passCount = allScores.filter(s=>s>=90).length;
+  const nearCount = allScores.filter(s=>s>=80&&s<90).length;
+  const failCount = allScores.filter(s=>s<80).length;
+
+  // ── Top / bottom performer cards ──
+  const _by=(arr,key,dir)=>[...arr].sort((x,y)=>(y[key]-x[key])*dir).slice(0,3);
+  const withQA=cData.filter(d=>d.qa!=null), withProd=cData.filter(d=>d.prod!=null);
+  const perfCard=(title,items,key,unit,color)=>`<div class="card" style="margin:0"><div class="card-hd"><span class="card-title">${title}</span></div><div class="card-bd" style="padding:10px 16px">${items.length?items.map(d=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span style="color:var(--text2)">${d.a}</span><span style="color:${color};font-weight:700">${d[key]}${unit}</span></div>`).join(''):'<span style="color:var(--text3);font-size:12px">No data</span>'}</div></div>`;
+  const perfCards=`<div class="charts-grid" style="margin-bottom:16px">
+    ${perfCard('🏆 Top QA', _by(withQA,'qa',1),'qa','%','var(--green)')}
+    ${perfCard('⚠ Needs Attention · QA', _by(withQA,'qa',-1),'qa','%','var(--red)')}
+    ${hp?'':perfCard('🏆 Top Productivity', _by(withProd,'prod',1),'prod','%','var(--green)')}
+    ${hp?'':perfCard('⚠ Lowest Productivity', _by(withProd,'prod',-1),'prod','%','var(--red)')}
+  </div>`;
+
+  document.getElementById('overviewContent').innerHTML=`
+    <div class="metrics-grid">
+      <div class="metric"><div class="m-lbl">Agents</div><div class="m-val cp">${agents.length}</div><div class="m-sub">in system</div></div>
+      <div class="metric"><div class="m-lbl">Tickets</div><div class="m-val cb">${totTickets.toLocaleString()}</div><div class="m-sub">${mk?fmtMonth(mk):'all time'}</div></div>
+      <div class="metric"><div class="m-lbl">Avg QA Score</div><div class="m-val ${parseFloat(avgQ)>=90?'cg':parseFloat(avgQ)>=80?'ca':'cr'}">${avgQ}${avgQ!=='—'?'%':''}</div><div class="m-sub">all agents</div></div>
+      <div class="metric"><div class="m-lbl">Pass Rate</div><div class="m-val ${pass>=90?'cg':pass>=80?'ca':'cr'}">${pass!==null?pass+'%':'—'}</div><div class="m-sub">≥ 90% threshold</div></div>
+      ${hp?'':`<div class="metric"><div class="m-lbl">Total Missing</div><div class="m-val cr">${totMissing}m</div><div class="m-sub">across all agents</div></div>`}
+    </div>
+    ${perfCards}
+    <div class="charts-grid">
+      ${chartCard('Avg QA Score by Agent','ovQaChart')}
+      ${chartCard('QA Outcome Split','ovDistChart')}
+      ${hp?'':chartCard('Productivity Achievement %','ovProdChart')}
+      ${chartCard('CSAT by Agent','ovCsatChart')}
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-title">Agent Summary</span><span class="badge bp">${agents.length} agents · ${mk?fmtMonth(mk):'All Time'}</span></div>
+      <div class="tbl-wrap card-bd-0">
+        <table class="tbl"><thead><tr><th>Agent</th><th>Tickets</th><th>QA Score</th><th>AHT</th><th>ART</th><th>CSAT</th>${hp?'':'<th>Productivity</th><th>Missing/OT</th>'}</tr></thead>
+        <tbody>${rows}</tbody></table>
+      </div>
+    </div>`;
+
+  // ── Render charts ──
+  const labels = cData.map(d=>d.a);
+  mkChart('ovQaChart', {
+    type:'bar',
+    data:{ labels, datasets:[{ label:'Avg QA %', data:cData.map(d=>d.qa),
+      backgroundColor:cData.map(d=>d.qa==null?'#3e3e60':d.qa>=90?hexA('#22c55e',.75):d.qa>=80?hexA('#f59e0b',.75):hexA('#ef4444',.75)),
+      borderRadius:5, borderWidth:0 }] },
+    options:{ plugins:{legend:{display:false}}, scales:{ x:gridAxis(), y:gridAxis({min:0,max:100,ticks:{callback:v=>v+'%'}}) } }
+  });
+  mkChart('ovDistChart', {
+    type:'doughnut',
+    data:{ labels:['Pass (≥90%)','Near miss (80–89%)','Fail (<80%)'], datasets:[{ data:[passCount,nearCount,failCount],
+      backgroundColor:[hexA('#22c55e',.8),hexA('#f59e0b',.8),hexA('#ef4444',.8)], borderColor:'#121226', borderWidth:2 }] },
+    options:{ cutout:'62%', plugins:{legend:{position:'bottom'}} }
+  });
+  if (!hp) mkChart('ovProdChart', {
+    type:'bar',
+    data:{ labels, datasets:[{ label:'Achievement %', data:cData.map(d=>d.prod),
+      backgroundColor:cData.map(d=>d.prod==null?'#3e3e60':d.prod>=100?hexA('#22c55e',.75):d.prod>=80?hexA('#f59e0b',.75):hexA('#ef4444',.75)),
+      borderRadius:5, borderWidth:0 }] },
+    options:{ plugins:{legend:{display:false}}, scales:{ x:gridAxis(), y:gridAxis({min:0,ticks:{callback:v=>v+'%'}}) } }
+  });
+  mkChart('ovCsatChart', {
+    type:'bar',
+    data:{ labels, datasets:[{ label:'CSAT %', data:cData.map(d=>d.csat),
+      backgroundColor:chartColors(labels.length,.75), borderRadius:5, borderWidth:0 }] },
+    options:{ plugins:{legend:{display:false}}, scales:{ x:gridAxis(), y:gridAxis({min:0,max:100,ticks:{callback:v=>v+'%'}}) } }
+  });
+}
+
+function state_agentId(name) { return S.agentIds[name]||'No ID'; }
+
+// ════════════════════════════════════════
+// QUALITY TABLE
+// ════════════════════════════════════════
+function renderQuality() {
+  const from = (document.getElementById('qualFrom')||{}).value||'';
+  const to   = (document.getElementById('qualTo')||{}).value||'';
+  const agents = getTabAgents('qual');
+  // Seed the coaching threshold from the centralized Config Center value (until admin overrides it here)
+  const thEl0=document.getElementById('qualThreshold');
+  if (thEl0 && !thEl0.dataset.touched && S.cfgTargets.coachingPct) thEl0.value=S.cfgTargets.coachingPct;
+  const thresh = qualThreshold();
+  const near = Math.max(0, thresh-10);
+
+  // Filter rows by agent + date range
+  const rows = S.qRows.filter(r => {
+    if (!agents.includes(r['Agent Name'])) return false;
+    if (!from && !to) return true;
+    const d = parseDate(r['Timestamp']); if (!d) return false;
+    if (from && d < new Date(from)) return false;
+    if (to   && d > new Date(to))   return false;
+    return true;
+  });
+  if (!rows.length) { document.getElementById('qualityContent').innerHTML=emptyHtml('No quality data','Sync to load or widen your filters'); return; }
+
+  // ── KPIs ──
+  const scores  = rows.map(getScore).filter(s=>s!==null);
+  const avg     = scores.length ? scores.reduce((a,b)=>a+b,0)/scores.length : null;
+  const passing = scores.filter(s=>s>=thresh).length;
+  const failing = scores.filter(s=>s<thresh).length;
+  const passRate= scores.length ? Math.round(passing/scores.length*100) : null;
+  const coachedCount = rows.filter(r=>QS.coached.has(ticketKey(r))).length;
+
+  // ── Per-agent averages (chart + used below) ──
+  const byAgent={};
+  rows.forEach(r=>{ const s=getScore(r); if(s===null) return; (byAgent[r['Agent Name']]=byAgent[r['Agent Name']]||[]).push(s); });
+  const aLabels=Object.keys(byAgent).sort((a,b)=>(byAgent[b].reduce((x,y)=>x+y,0)/byAgent[b].length)-(byAgent[a].reduce((x,y)=>x+y,0)/byAgent[a].length));
+  const aAvgs=aLabels.map(a=>+(byAgent[a].reduce((x,y)=>x+y,0)/byAgent[a].length).toFixed(1));
+
+  // ── Score-over-time trend (by day, overall avg) ──
+  const byDay={};
+  rows.forEach(r=>{ const s=getScore(r); const d=parseDate(r['Timestamp']); if(s===null||!d) return; const k=d.toISOString().slice(0,10); (byDay[k]=byDay[k]||[]).push(s); });
+  const tLabels=Object.keys(byDay).sort();
+  const tAvgs=tLabels.map(k=>+(byDay[k].reduce((x,y)=>x+y,0)/byDay[k].length).toFixed(1));
+
+  const passC=scores.filter(s=>s>=thresh).length;
+  const warnC=scores.filter(s=>s>=near&&s<thresh).length;
+  const failC=scores.filter(s=>s<near).length;
+
+  // ── Table rows: apply search + coached filter, then paginate ──
+  const q=(QS.search||'').toLowerCase();
+  let view = rows.filter(r=>{
+    const s=getScore(r); const key=ticketKey(r);
+    const isCoached=QS.coached.has(key); const needs=s!==null&&s<thresh;
+    if (QS.coachedFilter==='needs'   && !(needs&&!isCoached)) return false;
+    if (QS.coachedFilter==='coached' && !isCoached)           return false;
+    if (QS.coachedFilter==='pass'    && (needs||isCoached))   return false;
+    if (q){ const txt=[r['Agent Name'],r['Tickets Link'],r['Comment'],String(s)].join(' ').toLowerCase(); if(!txt.includes(q)) return false; }
+    return true;
+  });
+  view = applySort(view, 'qual', {
+    date:r=>new Date(r['Timestamp']).getTime()||0,
+    agent:r=>r['Agent Name']||'',
+    score:r=>{ const s=getScore(r); return s==null?-1:s; },
+  });
+
+  // CSV cache (whole filtered view, not just current page)
+  _csvCache.quality = {
+    headers:['Date','Agent','Score','Ticket','Comment','Coached'],
+    rows: view.map(r=>{ const s=getScore(r); return [ r['Timestamp']?new Date(r['Timestamp']).toLocaleDateString('en-GB'):'', r['Agent Name']||'', s==null?'':s, r['Tickets Link']||'', r['Comment']||'', QS.coached.has(ticketKey(r))?'yes':'' ]; }),
+  };
+
+  const total=view.length, pages=Math.max(1,Math.ceil(total/QS.pageSize));
+  if (QS.page>pages) QS.page=1;
+  const start=(QS.page-1)*QS.pageSize;
+  const pageRows=view.slice(start,start+QS.pageSize);
+
+  const trs = pageRows.map(r=>{
+    const s=getScore(r); const cls=scoreCls(s);
+    const ts=r['Timestamp']?new Date(r['Timestamp']).toLocaleDateString('en-GB'):'—';
+    const lnk=r['Tickets Link']||''; const key=ticketKey(r);
+    const coached=QS.coached.has(key); const needs=s!==null&&s<thresh;
+    const action = coached
+      ? `<button class="btn btn-sm" style="border-color:rgba(124,90,240,.4);color:var(--accent2)" onclick="toggleCoach('${key.replace(/'/g,"\\'")}')">✓ Coached</button>`
+      : needs
+        ? `<button class="btn btn-sm" style="border-color:var(--amber);color:var(--amber)" onclick="toggleCoach('${key.replace(/'/g,"\\'")}')">Mark Coached</button>`
+        : `<span class="badge bg">Pass</span>`;
+    return `<tr style="${coached?'background:rgba(124,90,240,.05)':''}">
+      <td style="font-size:11px">${ts}</td>
+      <td style="color:var(--text)">${r['Agent Name']||'—'}</td>
+      <td>${s!==null?`<span class="sc-badge ${cls}">${s.toFixed(1)}%</span>`:'—'}</td>
+      <td>${lnk?`<a href="${lnk}" target="_blank" style="color:var(--accent);font-size:12px">↗ Open</a>`:'—'}</td>
+      <td style="font-size:11.5px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(r['Comment']||'').replace(/"/g,'&quot;')}">${r['Comment']||'—'}</td>
+      <td>${action}</td>
+    </tr>`;
+  }).join('');
+
+  // Pagination buttons
+  let pag='';
+  if (pages>1){
+    let btns=`<button class="btn btn-sm" ${QS.page===1?'disabled':''} onclick="QS.page--;renderQuality()">‹</button>`;
+    for(let i=Math.max(1,QS.page-2);i<=Math.min(pages,QS.page+2);i++)
+      btns+=`<button class="btn btn-sm ${i===QS.page?'btn-accent':''}" onclick="QS.page=${i};renderQuality()">${i}</button>`;
+    btns+=`<button class="btn btn-sm" ${QS.page===pages?'disabled':''} onclick="QS.page++;renderQuality()">›</button>`;
+    pag=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--border)">
+      <span style="font-size:12px;color:var(--text3)">${start+1}–${Math.min(start+QS.pageSize,total)} of ${total}</span>
+      <div style="display:flex;gap:4px">${btns}</div></div>`;
+  }
+
+  document.getElementById('qualityContent').innerHTML=`
+    <div class="metrics-grid">
+      <div class="metric"><div class="m-lbl">Total Reviews</div><div class="m-val cb">${rows.length}</div><div class="m-sub">in current view</div></div>
+      <div class="metric"><div class="m-lbl">Avg QA Score</div><div class="m-val ${avg==null?'':avg>=thresh?'cg':avg>=near?'ca':'cr'}">${avg!=null?avg.toFixed(1)+'%':'—'}</div><div class="m-sub">across reviews</div></div>
+      <div class="metric"><div class="m-lbl">Pass Rate</div><div class="m-val ${passRate>=90?'cg':passRate>=80?'ca':'cr'}">${passRate!=null?passRate+'%':'—'}</div><div class="m-sub">≥ ${thresh}%</div></div>
+      <div class="metric"><div class="m-lbl">Coaching Needed</div><div class="m-val cr">${failing}</div><div class="m-sub">&lt; ${thresh}% threshold</div></div>
+      <div class="metric"><div class="m-lbl">Coached</div><div class="m-val cp">${coachedCount}</div><div class="m-sub">marked done</div></div>
+    </div>
+    <div class="charts-grid">
+      ${chartCard('Avg Score by Agent','qaAgentChart')}
+      ${chartCard('Outcome Breakdown','qaDistChart')}
+      ${chartCard('Avg Score Over Time','qaTrendChart')}
+    </div>
+    <div class="card"><div class="card-hd"><span class="card-title">Ticket-Level QA Reviews</span><div style="display:flex;gap:8px;align-items:center"><span class="badge bp">${total} records</span>${csvBtn('quality')}</div></div>
+    <div class="tbl-wrap card-bd-0"><table class="tbl"><thead><tr>${sortableTh('qual','date','Date')}${sortableTh('qual','agent','Agent')}${sortableTh('qual','score','Score')}<th>Ticket</th><th>Comment</th><th>Coaching</th></tr></thead><tbody>${trs||`<tr><td colspan="6" style="color:var(--text3);padding:20px;text-align:center">No tickets match your filters</td></tr>`}</tbody></table></div>${pag}</div>`;
+
+  // ── Charts ──
+  mkChart('qaAgentChart', {
+    type:'bar',
+    data:{ labels:aLabels, datasets:[{ label:'Avg %', data:aAvgs,
+      backgroundColor:aAvgs.map(v=>v>=thresh?hexA('#22c55e',.75):v>=near?hexA('#f59e0b',.75):hexA('#ef4444',.75)),
+      borderRadius:5 }] },
+    options:{ indexAxis:'y', plugins:{legend:{display:false}}, scales:{ x:gridAxis({min:0,max:100,ticks:{callback:v=>v+'%'}}), y:gridAxis() } }
+  });
+  mkChart('qaDistChart', {
+    type:'doughnut',
+    data:{ labels:[`Pass (≥${thresh}%)`,`Near miss (${near}–${thresh}%)`,`Fail (<${near}%)`], datasets:[{ data:[passC,warnC,failC],
+      backgroundColor:[hexA('#22c55e',.8),hexA('#f59e0b',.8),hexA('#ef4444',.8)], borderColor:'#121226', borderWidth:2 }] },
+    options:{ cutout:'62%', plugins:{legend:{position:'bottom'}} }
+  });
+  mkChart('qaTrendChart', {
+    type:'line',
+    data:{ labels:tLabels.map(k=>new Date(k).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})), datasets:[{ label:'Avg %', data:tAvgs,
+      borderColor:'#7c5af0', backgroundColor:hexA('#7c5af0',.15), fill:true, tension:.3, pointRadius:3, pointBackgroundColor:'#7c5af0' }] },
+    options:{ plugins:{legend:{display:false}}, scales:{ x:gridAxis(), y:gridAxis({min:0,max:100,ticks:{callback:v=>v+'%'}}) } }
+  });
+}
+
+// ════════════════════════════════════════
+// PRODUCTIVITY TABLE
+// ════════════════════════════════════════
+function auxClassOf(name){ return S.auxConfig[name] || 'Non-Productive'; }
+function auxOrder(a,b){ const rank=c=>c==='Available'?0:c==='Productive'?1:2; const ra=rank(auxClassOf(a)),rb=rank(auxClassOf(b)); return ra!==rb?ra-rb:a.localeCompare(b); }
+
+function renderProductivity() {
+  const from = (document.getElementById('prodFrom')||{}).value||'';
+  const to   = (document.getElementById('prodTo')||{}).value||'';
+  const q    = ((document.getElementById('prodSearch')||{}).value||'').toLowerCase();
+  let agents = getTabAgents('prod');
+  if (q) agents = agents.filter(a=>a.toLowerCase().includes(q));
+  if (!agents.length) { document.getElementById('productivityContent').innerHTML=emptyHtml('No timeline data','Sync to load or adjust filters'); return; }
+  const reqHrs = S.cfgTargets.requiredAvailHrs || 7.8;
+
+  // Data-array first (only agents with timeline data in range), then sort.
+  let data = agents.map(a=>({ a, p:calcProdRange(a,from,to) })).filter(x=>x.p);
+  if (!data.length) { document.getElementById('productivityContent').innerHTML=emptyHtml('No timeline data','No data for this period'); return; }
+  data = applySort(data, 'prod', {
+    agent:x=>x.a, days:x=>x.p.days, overtime:x=>x.p.overtimeSec, logged:x=>x.p.totLogged,
+    productive:x=>x.p.achievedSec, pct:x=>x.p.pct, variance:x=>x.p.diff, discrepancy:x=>x.p.totDiscrepancy,
+  });
+
+  const rows = data.map(({a,p})=>{
+    const pc=p.pct>=100?'var(--green)':p.pct>=80?'var(--amber)':'var(--red)';
+    const dl=p.diff<0?`<span class="cr">-${Math.abs(p.diff)} min</span>`:p.diff>0?`<span class="cg">+${p.diff} min</span>`:`<span style="color:var(--text3)">On target</span>`;
+    const discMin = Math.round(p.totDiscrepancy/60);
+    const discHtml = Math.abs(discMin)>2
+      ? `<span class="cr" style="cursor:pointer" onclick="drillAgentAux('${a.replace(/'/g,"\\\\'")}','${from}','${to}')" title="Click to investigate">⚠ ${discMin}m</span>`
+      : `<span style="color:var(--text3)">—</span>`;
+    const ot = p.overtimeDays>0 ? `<span class="ca">${p.overtimeDays}d · ${(p.overtimeSec/3600).toFixed(1)}h</span>` : `<span style="color:var(--text3)">—</span>`;
+    return `<tr>
+      <td style="color:var(--text)">${a}</td>
+      <td>${p.days} days</td>
+      <td>${ot}</td>
+      <td>${(p.totLogged/3600).toFixed(1)}h</td>
+      <td>${(p.achievedSec/3600).toFixed(1)}h / ${(p.totTarget/3600).toFixed(1)}h</td>
+      <td><div class="prod-bar-bg"><div class="prod-bar-fill" style="width:${Math.min(100,p.pct)}%;background:${pc}"></div></div><span style="font-size:11px;color:${pc}">${p.pct}%</span></td>
+      <td>${dl}</td>
+      <td>${discHtml}</td>
+    </tr>`;
+  }).join('');
+
+  // CSV cache for the productivity table
+  _csvCache.productivity = {
+    headers:['Agent','Shift Days','Overtime Days','Overtime Hours','Total Logged (h)','Productive (h)','Required (h)','Achievement %','Variance (min)','Discrepancy (min)'],
+    rows: data.map(({a,p})=>[a,p.days,p.overtimeDays,(p.overtimeSec/3600).toFixed(2),(p.totLogged/3600).toFixed(2),(p.achievedSec/3600).toFixed(2),(p.totTarget/3600).toFixed(2),p.pct,p.diff,Math.round(p.totDiscrepancy/60)]),
+  };
+
+  // ── AUX breakdown (each status duration + totals across all agents) ──
+  const statuses = [...new Set(data.flatMap(x=>Object.keys(x.p.auxTotals||{})))].sort(auxOrder);
+  const grandTotalSec = data.reduce((s,x)=>s+x.p.totLogged,0);
+  const auxHead = `<th class="sortable" onclick="setSort('aux','agent')">Agent ${sortIndicator('aux','agent')}</th>`
+    + statuses.map(st=>{ const cl=auxClassOf(st); const col=cl==='Non-Productive'?'var(--red)':'var(--green)';
+        return `<th class="sortable" style="color:${col}" onclick="setSort('aux','${st.replace(/'/g,"\\'")}')">${st} ${sortIndicator('aux',st)}</th>`; }).join('')
+    + `<th class="sortable" onclick="setSort('aux','total')">Total ${sortIndicator('aux','total')}</th>`;
+  const auxAcc = { agent:x=>x.a, total:x=>x.p.totLogged };
+  statuses.forEach(st=>auxAcc[st]=x=>x.p.auxTotals[st]||0);
+  const auxData = applySort(data, 'aux', auxAcc);
+  const auxRows = auxData.map(({a,p})=>`<tr><td style="color:var(--text)">${a}</td>${
+      statuses.map(st=>{ const sec=p.auxTotals[st]||0; return `<td>${sec? (sec/3600).toFixed(1)+'h':'<span style="color:var(--text3)">—</span>'}</td>`; }).join('')
+    }<td style="color:var(--text);font-weight:600">${(p.totLogged/3600).toFixed(1)}h</td></tr>`).join('');
+  const auxTotalsRow = `<tr class="totals"><td>All agents</td>${
+      statuses.map(st=>{ const sec=data.reduce((s,x)=>s+(x.p.auxTotals[st]||0),0); return `<td>${(sec/3600).toFixed(1)}h</td>`; }).join('')
+    }<td>${(grandTotalSec/3600).toFixed(1)}h</td></tr>`;
+  _csvCache.aux = {
+    headers:['Agent',...statuses,'Total (h)'],
+    rows: auxData.map(({a,p})=>[a,...statuses.map(st=>((p.auxTotals[st]||0)/3600).toFixed(2)),(p.totLogged/3600).toFixed(2)]),
+  };
+
+  // ── Chart datasets ──
+  const prd = data; const prLabels=prd.map(x=>x.a);
+
+  document.getElementById('productivityContent').innerHTML=`
+    <div class="metrics-grid">
+      <div class="metric"><div class="m-lbl">Agents</div><div class="m-val cp">${data.length}</div><div class="m-sub">with data</div></div>
+      <div class="metric"><div class="m-lbl">Total Duration</div><div class="m-val cb">${(grandTotalSec/3600).toFixed(0)}h</div><div class="m-sub">all agents · logged</div></div>
+      <div class="metric"><div class="m-lbl">Productive</div><div class="m-val cg">${(data.reduce((s,x)=>s+x.p.totProductive,0)/3600).toFixed(0)}h</div><div class="m-sub">all agents</div></div>
+      <div class="metric"><div class="m-lbl">Overtime Days</div><div class="m-val ca">${data.reduce((s,x)=>s+x.p.overtimeDays,0)}</div><div class="m-sub">&lt; ${S.cfgTargets.shiftMinHrs||6}h productive</div></div>
+    </div>
+    <div class="charts-grid">
+      ${chartCard('Productivity Achievement % by Agent','prodAchChart',`target ${reqHrs}h/day`)}
+      ${chartCard('Productive vs Non-Productive Hours','prodSplitChart')}
+    </div>
+    <div class="card"><div class="card-hd"><span class="card-title">Productivity vs Target (${reqHrs}h/day required)</span><div style="display:flex;gap:8px;align-items:center"><span class="badge bp">${from&&to?from+' → '+to:'All Time'}</span>${csvBtn('productivity')}</div></div>
+    <div class="tbl-wrap card-bd-0"><table class="tbl"><thead><tr>${sortableTh('prod','agent','Agent')}${sortableTh('prod','days','Shift Days')}${sortableTh('prod','overtime','Overtime')}${sortableTh('prod','logged','Total Logged')}${sortableTh('prod','productive','Productive / Required')}${sortableTh('prod','pct','Achievement')}${sortableTh('prod','variance','Variance')}${sortableTh('prod','discrepancy','Discrepancy')}</tr></thead><tbody>${rows}</tbody></table></div></div>
+    <div class="card"><div class="card-hd"><span class="card-title">AUX Duration Breakdown</span><div style="display:flex;gap:8px;align-items:center"><span class="badge bp">each status · Idle = non-productive</span>${csvBtn('aux')}</div></div>
+    <div class="tbl-wrap card-bd-0"><table class="tbl"><thead><tr>${auxHead}</tr></thead><tbody>${auxRows}${auxTotalsRow}</tbody></table></div></div>
+    <div id="auxDrilldown"></div>`;
+  saveFilters();
+
+  mkChart('prodAchChart', {
+    type:'bar',
+    data:{ labels:prLabels, datasets:[{ label:'Achievement %', data:prd.map(x=>x.p.pct),
+      backgroundColor:prd.map(x=>x.p.pct>=100?hexA('#22c55e',.8):x.p.pct>=80?hexA('#f59e0b',.8):hexA('#ef4444',.8)), borderRadius:5 }] },
+    options:{ plugins:{legend:{display:false}}, scales:{ x:gridAxis(), y:gridAxis({min:0,ticks:{callback:v=>v+'%'}}) } }
+  });
+  mkChart('prodSplitChart', {
+    type:'bar',
+    data:{ labels:prLabels, datasets:[
+      { label:'Productive', data:prd.map(x=>+(x.p.totProductive/3600).toFixed(1)), backgroundColor:hexA('#22c55e',.8), borderRadius:4, stack:'h' },
+      { label:'Non-Productive', data:prd.map(x=>+(x.p.totNonProductive/3600).toFixed(1)), backgroundColor:hexA('#ef4444',.8), borderRadius:4, stack:'h' },
+    ] },
+    options:{ scales:{ x:gridAxis({stacked:true}), y:gridAxis({stacked:true,min:0,ticks:{callback:v=>v+'h'}}) } }
+  });
+}
+
+// Drill-down: show per-day AUX breakdown for one agent (investigates discrepancies)
+function drillAgentAux(name, from, to) {
+  const rows = S.aRows.filter(r => {
+    if (r.agent_name.trim()!==name.trim()) return false;
+    if (!from && !to) return true;
+    const d=parseDate(r.activity_date); if(!d) return false;
+    if (from && d<new Date(from)) return false;
+    if (to   && d>new Date(to))   return false;
+    return true;
+  }).sort((a,b)=>new Date(a.activity_date)-new Date(b.activity_date));
+
+  const trs = rows.map(r => {
+    const auxList = Object.entries(r.aux_totals).map(([n,s])=>`${n}: ${(s/60).toFixed(0)}m`).join(', ');
+    const discMin = Math.round(r.discrepancy_sec/60);
+    return `<tr>
+      <td>${r.activity_date}</td>
+      <td>${(r.total_logged_sec/3600).toFixed(2)}h</td>
+      <td class="cg">${(r.available_sec/3600).toFixed(2)}h</td>
+      <td>${(r.productive_sec/3600).toFixed(2)}h</td>
+      <td>${(r.non_productive_sec/3600).toFixed(2)}h</td>
+      <td style="${Math.abs(discMin)>2?'color:var(--red)':'color:var(--text3)'}">${discMin}m</td>
+      <td style="font-size:11px;max-width:280px">${auxList}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('auxDrilldown').innerHTML = `
+    <div class="card" style="margin-top:16px">
+      <div class="card-hd"><span class="card-title">AUX Drill-down — ${name}</span><button class="btn btn-sm" onclick="document.getElementById('auxDrilldown').innerHTML=''">✕ Close</button></div>
+      <div class="tbl-wrap card-bd-0"><table class="tbl"><thead><tr><th>Date</th><th>Logged</th><th>Available</th><th>Productive</th><th>Non-Productive</th><th>Discrepancy</th><th>AUX Breakdown</th></tr></thead><tbody>${trs}</tbody></table></div>
+    </div>`;
+  document.getElementById('auxDrilldown').scrollIntoView({behavior:'smooth'});
+}
+
+// ════════════════════════════════════════
+// PERFORMANCE TABLE
+// ════════════════════════════════════════
+function renderPerformance() {
+  if (!S.pRows.length) { document.getElementById('performanceContent').innerHTML=emptyHtml('No performance data','Sync to load'); return; }
+  const from = (document.getElementById('perfFrom')||{}).value||'';
+  const to   = (document.getElementById('perfTo')||{}).value||'';
+  const qf   = ((document.getElementById('perfSearch')||{}).value||'').toLowerCase();
+  let agents = getTabAgents('perf');
+  if (qf) agents = agents.filter(a=>a.toLowerCase().includes(qf));
+  const T = S.cfgTargets;
+
+  let data = agents.map(a=>({ a, perf:aggPerf(getAgentPerfRows(a,from,to)) })).filter(x=>x.perf);
+  if (!data.length) { document.getElementById('performanceContent').innerHTML=emptyHtml('No performance data','No data for this period'); return; }
+  data = applySort(data, 'perf', {
+    agent:x=>x.a, conversations:x=>+x.perf.total_conversations, tickets:x=>+x.perf.total_tickets,
+    resolved:x=>+x.perf.resolved_tickets, aht:x=>+x.perf.avg_aht_min, art:x=>+x.perf.avg_art_sec,
+    csat:x=>+x.perf.csat_pct, resolution:x=>+x.perf.resolution_rate_pct, satisfied:x=>+x.perf.csat_positive_count, dsat:x=>+x.perf.dsat_count,
+  });
+
+  const rows = data.map(({a,perf}) => `<tr>
+      <td style="color:var(--text)">${a}</td>
+      <td>${perf.total_conversations}</td>
+      <td>${perf.total_tickets}</td>
+      <td>${perf.resolved_tickets}</td>
+      <td class="${targetClass(perf.avg_aht_min,T.ahtTargetMin,'low')}">${perf.avg_aht_min} min</td>
+      <td class="${targetClass(perf.avg_art_sec,T.artTargetSec,'low')}">${perf.avg_art_sec}s</td>
+      <td class="${targetClass(perf.csat_pct,T.csatTargetPct,'high')}">${perf.csat_pct}%</td>
+      <td class="${targetClass(perf.resolution_rate_pct,T.resolutionTargetPct,'high')}">${perf.resolution_rate_pct}%</td>
+      <td class="cg">${perf.csat_positive_count}</td>
+      <td class="cr">${perf.dsat_count}</td>
+    </tr>`).join('');
+
+  _csvCache.performance = {
+    headers:['Agent','Conversations','Tickets','Resolved','AHT (min)','ART (sec)','CSAT %','Resolution %','Satisfied','DSAT'],
+    rows: data.map(({a,perf})=>[a,perf.total_conversations,perf.total_tickets,perf.resolved_tickets,perf.avg_aht_min,perf.avg_art_sec,perf.csat_pct,perf.resolution_rate_pct,perf.csat_positive_count,perf.dsat_count]),
+  };
+
+  // ── Chart datasets ──
+  const pd = data; const pLabels=pd.map(x=>x.a);
+
+  document.getElementById('performanceContent').innerHTML=`
+    <div class="charts-grid">
+      ${chartCard('AHT vs ART by Agent','perfAhtChart','AHT min · ART sec')}
+      ${chartCard('CSAT vs Resolution Rate','perfCsatChart','%')}
+      ${chartCard('Satisfied vs Dissatisfied','perfSatChart')}
+    </div>
+    <div class="card"><div class="card-hd"><span class="card-title">Performance Metrics</span><div style="display:flex;gap:8px;align-items:center"><span class="badge bb">vs targets · ${from&&to?from+' → '+to:'All dates'}</span>${csvBtn('performance')}</div></div>
+    <div class="tbl-wrap card-bd-0"><table class="tbl"><thead><tr>
+      ${sortableTh('perf','agent','Agent')}${sortableTh('perf','conversations','Conversations')}${sortableTh('perf','tickets','Tickets')}${sortableTh('perf','resolved','Resolved')}${sortableTh('perf','aht','AHT')}${sortableTh('perf','art','ART')}${sortableTh('perf','csat','CSAT%')}${sortableTh('perf','resolution','Resolution%')}${sortableTh('perf','satisfied','Satisfied')}${sortableTh('perf','dsat','DSAT')}
+    </tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  saveFilters();
+
+  mkChart('perfAhtChart', {
+    type:'bar',
+    data:{ labels:pLabels, datasets:[
+      { label:'AHT (min)', data:pd.map(x=>+x.perf.avg_aht_min), backgroundColor:hexA('#7c5af0',.8), borderRadius:4, yAxisID:'y' },
+      { label:'ART (sec)', data:pd.map(x=>+x.perf.avg_art_sec), backgroundColor:hexA('#3b7ef8',.8), borderRadius:4, yAxisID:'y1' },
+    ] },
+    options:{ scales:{ x:gridAxis(),
+      y:gridAxis({position:'left',min:0,title:{display:true,text:'AHT min',color:'#8080a0'}}),
+      y1:gridAxis({position:'right',min:0,grid:{drawOnChartArea:false},title:{display:true,text:'ART sec',color:'#8080a0'}}) } }
+  });
+  mkChart('perfCsatChart', {
+    type:'bar',
+    data:{ labels:pLabels, datasets:[
+      { label:'CSAT %', data:pd.map(x=>+x.perf.csat_pct), backgroundColor:hexA('#22c55e',.8), borderRadius:4 },
+      { label:'Resolution %', data:pd.map(x=>+x.perf.resolution_rate_pct), backgroundColor:hexA('#f59e0b',.8), borderRadius:4 },
+    ] },
+    options:{ scales:{ x:gridAxis(), y:gridAxis({min:0,max:100,ticks:{callback:v=>v+'%'}}) } }
+  });
+  mkChart('perfSatChart', {
+    type:'bar',
+    data:{ labels:pLabels, datasets:[
+      { label:'Satisfied', data:pd.map(x=>+x.perf.csat_positive_count), backgroundColor:hexA('#22c55e',.8), borderRadius:4, stack:'s' },
+      { label:'DSAT', data:pd.map(x=>+x.perf.dsat_count), backgroundColor:hexA('#ef4444',.8), borderRadius:4, stack:'s' },
+    ] },
+    options:{ scales:{ x:gridAxis({stacked:true}), y:gridAxis({stacked:true,min:0}) } }
+  });
+}
+
+// ════════════════════════════════════════
+// AGENT IDs EDITOR
+// ════════════════════════════════════════
+function refreshIdsEditor() {
+  const agents = allAgents();
+  const el = document.getElementById('idsEditor');
+  if (!el) return;
+  if (!agents.length) { el.innerHTML=emptyHtml('No agents','Sync quality data first'); return; }
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 180px;gap:8px;padding:0 0 10px;border-bottom:1px solid var(--border);margin-bottom:8px">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px">Agent Name</div>
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px">Agent ID</div>
+    </div>
+    ${agents.map(a=>`
+    <div style="display:grid;grid-template-columns:1fr 180px;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.03)">
+      <div style="font-size:13px;color:var(--text)">${a}</div>
+      <input class="inp inp-sm" data-agent="${a}" value="${S.agentIds[a]||''}" placeholder="e.g. AG001" style="font-family:monospace;letter-spacing:1px;text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"/>
+    </div>`).join('')}`;
+}
+
+async function saveIds() {
+  document.querySelectorAll('#idsEditor input[data-agent]').forEach(inp=>{
+    const name=inp.dataset.agent, id=inp.value.trim().toUpperCase();
+    if (id) S.agentIds[name]=id; else delete S.agentIds[name];
+  });
+  ls.set('t_ids', S.agentIds);
+  await gasWrite('agentIds', S.agentIds);
+  toast('Agent IDs saved ✓');
+}
+
+// ════════════════════════════════════════
+// EXCEPTIONS
+// ════════════════════════════════════════
+function refreshExcAgents() {
+  const sel = document.getElementById('excAgent'); if (!sel) return;
+  sel.innerHTML = `<option value="">Select agent…</option>` + allAgents().map(a=>`<option value="${a}">${a}</option>`).join('');
+}
+
+async function addException() {
+  const agent  = document.getElementById('excAgent').value;
+  const date   = document.getElementById('excDate').value;
+  const mins   = parseInt(document.getElementById('excMins').value);
+  const reason = document.getElementById('excReason').value.trim();
+  if (!agent)   { toast('Select an agent',true); return; }
+  if (!date)    { toast('Select a date',true); return; }
+  if (!mins||mins<1) { toast('Enter valid minutes',true); return; }
+  S.exceptions.push({agent,date,minutes:mins,reason:reason||'Exception',id:Date.now()});
+  ls.set('t_exc', S.exceptions);
+  await gasWrite('exceptions', S.exceptions);
+  document.getElementById('excMins').value='';
+  document.getElementById('excReason').value='';
+  renderExcList();
+  toast('Exception added ✓');
+}
+
+async function removeException(id) {
+  S.exceptions = S.exceptions.filter(e=>e.id!==id);
+  ls.set('t_exc', S.exceptions);
+  await gasWrite('exceptions', S.exceptions);
+  renderExcList();
+  toast('Exception removed');
+}
+
+function renderExcList() {
+  const el = document.getElementById('excList'); if (!el) return;
+  if (!S.exceptions.length) { el.innerHTML=`<div style="color:var(--text3);font-size:13px;padding:12px 0">No exceptions added yet.</div>`; return; }
+  const sorted = [...S.exceptions].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  el.innerHTML=`<div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Agent</th><th>Date</th><th>Minutes</th><th>Reason</th><th></th></tr></thead>
+    <tbody>${sorted.map(e=>`<tr>
+      <td style="color:var(--text)">${e.agent}</td>
+      <td style="font-family:monospace;font-size:12px">${e.date}</td>
+      <td class="cg">+${e.minutes}m</td>
+      <td>${e.reason}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="removeException(${e.id})">Remove</button></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+// ════════════════════════════════════════
+// AGENT DASHBOARD
+// ════════════════════════════════════════
+function renderAgent() {
+  const name = S.agentName;
+  const from = (document.getElementById('agentFrom')||{}).value||'';
+  const to   = (document.getElementById('agentTo')||{}).value||'';
+  // derive mk from from/to for quality+adherence (use from date month)
+  const mk = from ? from.substring(0,7) : getMonth('agentMonth')||'';
+  const q    = calcQuality(name, mk);
+  const p    = calcProd(name, mk);
+  const perf = aggPerf(getAgentPerfRows(name, from, to));
+
+  const initials = name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+  const qs = q?q.avg:null;
+  const scoreColor = qs===null?'var(--text2)':qs>=90?'var(--green)':qs>=80?'var(--amber)':'var(--red)';
+
+  // Missing / Overtime — based on Available Time vs Required Available Time target
+  const reqHrs = S.cfgTargets.requiredAvailHrs || 7.8;
+  let minsHtml='';
+  if (p && !prodHidden()) {
+    const abs=Math.abs(p.diff);
+    const cls=p.diff<0?'missing':p.diff>0?'overtime':'balanced';
+    const col=p.diff<0?'var(--red)':p.diff>0?'var(--green)':'var(--accent2)';
+    const lbl=p.diff<0?'Minutes Missing This Period':p.diff>0?'Overtime Minutes':'On Target';
+    minsHtml=`<div class="mins-card ${cls}">
+      <div class="mins-val" style="color:${col}">${p.diff<0?'-':''}${abs}</div>
+      <div class="mins-lbl">${lbl} · vs ${reqHrs}h/day required</div>
+      ${p.excMins>0?`<div style="font-size:11.5px;color:var(--text2);margin-top:6px">+${p.excMins} exception minutes applied by admin</div>`:''}
+    </div>`;
+  }
+
+  // Perf values
+  const artSec = perf ? perf.avg_art_sec+'s' : '—';
+  const passRate=q?Math.round(q.passing/q.total*100):null;
+  // Shift start/end — sourced from Performance sheet (first_hour/last_hour), not adherence
+  let shiftHtml = '';
+  if (perf && perf.rows && perf.rows.length) {
+    const firstHours = perf.rows.map(r=>r.first_hour).filter(Boolean);
+    const lastHours  = perf.rows.map(r=>r.last_hour).filter(Boolean);
+    if (firstHours.length) {
+      shiftHtml = `<span style="margin-left:10px">Shift: <strong style="color:var(--text)">${firstHours[firstHours.length-1]} → ${lastHours[lastHours.length-1]||'—'}</strong></span>`;
+    }
+  }
+
+  // Productivity bar — Available Time vs Required Available Time target
+  let prodHtml='';
+  if (p && !prodHidden()) {
+    const pc=p.pct>=100?'var(--green)':p.pct>=80?'var(--amber)':'var(--red)';
+    const discMin = Math.round(p.totDiscrepancy/60);
+    prodHtml=`<div class="card">
+      <div class="card-hd"><span class="card-title">Productivity · ${mk?fmtMonth(mk):'This Period'}</span><span class="badge bp">${p.days} working days</span></div>
+      <div class="card-bd">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:13px;color:var(--text2)">${(p.achievedSec/3600).toFixed(1)}h productive of ${(p.totTarget/3600).toFixed(1)}h required</span>
+          <span style="font-family:var(--fd);font-size:22px;font-weight:700;color:${pc}">${p.pct}%</span>
+        </div>
+        <div class="prod-bar-bg" style="height:10px;border-radius:5px">
+          <div class="prod-bar-fill" style="width:${Math.min(100,p.pct)}%;background:${pc};height:100%;border-radius:5px"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11.5px;color:var(--text3)">
+          <span>Target: ${reqHrs} hrs/day</span><span>Daily avg: ${(p.achievedSec/3600/p.days).toFixed(1)}h${shiftHtml}</span>
+        </div>
+      </div>
+    </div>
+    <div class="metrics-grid" style="margin-top:0">
+      <div class="metric"><div class="m-lbl">Total Logged</div><div class="m-val">${(p.totLogged/3600).toFixed(1)}h</div><div class="m-sub">login to logout</div></div>
+      <div class="metric"><div class="m-lbl">Productive</div><div class="m-val cg">${(p.totProductive/3600).toFixed(1)}h</div><div class="m-sub">all productive AUX</div></div>
+      <div class="metric"><div class="m-lbl">Non-Productive</div><div class="m-val cr">${(p.totNonProductive/3600).toFixed(1)}h</div><div class="m-sub">break, personal, etc.</div></div>
+      <div class="metric"><div class="m-lbl">Discrepancy</div><div class="m-val ${Math.abs(discMin)>2?'ca':''}">${discMin}m</div><div class="m-sub">unaccounted time</div></div>
+    </div>`;
+  }
+
+  // Recent QA tickets
+  let qaHtml='';
+  if (q&&q.rows.length) {
+    const recent=[...q.rows].sort((a,b)=>new Date(b['Timestamp'])-new Date(a['Timestamp'])).slice(0,10);
+    qaHtml=`<div class="card">
+      <div class="card-hd"><span class="card-title">Recent QA Reviews</span><span class="badge bp">${q.total} total · avg ${qs}%</span></div>
+      <div class="tbl-wrap card-bd-0"><table class="tbl">
+        <thead><tr><th>Date</th><th>Score</th><th>Ticket</th><th>Comment</th></tr></thead>
+        <tbody>${recent.map(r=>{
+          const s=getScore(r); const cls=scoreCls(s);
+          const ts=r['Timestamp']?new Date(r['Timestamp']).toLocaleDateString('en-GB'):'—';
+          const lnk=r['Tickets Link']||'';
+          return `<tr>
+            <td style="font-size:11px">${ts}</td>
+            <td>${s!==null?`<span class="sc-badge ${cls}">${s.toFixed(1)}%</span>`:'—'}</td>
+            <td>${lnk?`<a href="${lnk}" target="_blank" style="color:var(--accent);font-size:12px">↗ Open</a>`:'—'}</td>
+            <td style="font-size:11.5px;color:var(--text2);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r['Comment']||'—'}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
+    </div>`;
+  }
+
+  // ── Personal charts: QA trend + time split ──
+  let chartsHtml='';
+  const haveTrend = q && q.rows.length>1;
+  const haveSplit = p && !prodHidden() && (p.totProductive+p.totNonProductive)>0;
+  if (haveTrend || haveSplit) {
+    chartsHtml = `<div class="charts-grid">
+      ${haveTrend?chartCard('Your QA Score Over Time','agQaTrend'):''}
+      ${haveSplit?chartCard('Your Time Breakdown','agSplit'):''}
+    </div>`;
+  }
+
+  document.getElementById('agentContent').innerHTML=`
+    <div class="agent-hero">
+      <div class="agent-avatar">${initials}</div>
+      <div>
+        <div class="agent-hero-name">${name}</div>
+        <div class="agent-hero-id">ID: ${S.agentId} · ${mk?fmtMonth(mk):'Current Month'}</div>
+      </div>
+      <div class="agent-hero-score" style="margin-left:auto;text-align:right">
+        <div class="m-lbl" style="color:var(--text3)">QA Score</div>
+        <div style="font-family:var(--fd);font-size:36px;font-weight:800;color:${scoreColor}">${qs!==null?qs+'%':'—'}</div>
+      </div>
+    </div>
+
+    ${minsHtml}
+
+    <div class="metrics-grid">
+      ${[
+        {l:'Conversations',   v:perf?perf.total_conversations:'—',   s:'handled',             c:'cb'},
+        {l:'Total Tickets',   v:perf?perf.total_tickets:'—',           s:'tickets',             c:''},
+        {l:'Resolved',        v:perf?perf.resolved_tickets:'—',        s:'resolved tickets',    c:'cg'},
+        {l:'AHT',             v:perf?perf.avg_aht_min+' min':'—',      s:'avg handle time',     c:''},
+        {l:'ART',             v:artSec,                                 s:'avg reply time',      c:'cp'},
+        {l:'CSAT',            v:perf?perf.csat_pct+'%':'—',            s:'satisfaction rate',   c:perf&&parseFloat(perf.csat_pct)>=80?'cg':perf&&parseFloat(perf.csat_pct)>=60?'ca':'cr'},
+        {l:'Resolution Rate', v:perf?perf.resolution_rate_pct+'%':'—', s:'cases resolved',      c:''},
+        {l:'CSAT Surveys',    v:perf?perf.csat_rated_count:'—',        s:'received',            c:''},
+        {l:'Satisfied',       v:perf?perf.csat_positive_count:'—',     s:'users',               c:'cg'},
+        {l:'DSAT',            v:perf?perf.dsat_count:'—',              s:'dissatisfied users',  c:'cr'},
+        {l:'QA Tickets',      v:q?q.total:'—',                            s:'evaluated',            c:''},
+        {l:'Pass Rate',       v:passRate!==null?passRate+'%':'—',         s:'≥ 90% threshold',     c:passRate>=90?'cg':passRate>=80?'ca':'cr'},
+        {l:'QA Average',      v:qs!==null?qs+'%':'—',                     s:'this period',          c:qs>=90?'cg':qs>=80?'ca':'cr'},
+      ].map(m=>`<div class="metric"><div class="m-lbl">${m.l}</div><div class="m-val ${m.c}">${m.v}</div><div class="m-sub">${m.s}</div></div>`).join('')}
+    </div>
+
+    ${chartsHtml}
+    ${prodHtml}
+    ${qaHtml}`;
+
+  // ── Render personal charts ──
+  if (haveTrend) {
+    const pts=[...q.rows].map(r=>({d:parseDate(r['Timestamp']),s:getScore(r)})).filter(x=>x.d&&x.s!==null).sort((a,b)=>a.d-b.d);
+    mkChart('agQaTrend', {
+      type:'line',
+      data:{ labels:pts.map(x=>x.d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})),
+        datasets:[{ label:'QA %', data:pts.map(x=>x.s), borderColor:'#7c5af0', backgroundColor:hexA('#7c5af0',.15), fill:true, tension:.3, pointRadius:3, pointBackgroundColor:'#7c5af0' }] },
+      options:{ plugins:{legend:{display:false}}, scales:{ x:gridAxis(), y:gridAxis({min:0,max:100,ticks:{callback:v=>v+'%'}}) } }
+    });
+  }
+  if (haveSplit) {
+    mkChart('agSplit', {
+      type:'doughnut',
+      data:{ labels:['Productive','Non-Productive'], datasets:[{ data:[+(p.totProductive/3600).toFixed(1),+(p.totNonProductive/3600).toFixed(1)],
+        backgroundColor:[hexA('#22c55e',.85),hexA('#ef4444',.85)], borderColor:'#121226', borderWidth:2 }] },
+      options:{ cutout:'62%', plugins:{legend:{position:'bottom'}, tooltip:{callbacks:{label:c=>c.label+': '+c.parsed+'h'}}} }
+    });
+  }
+}
+
+// ════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════
+// ── AGENT FILTER HELPERS ──────────────────────────────────
+function toggleAgentFilter() {
+  const bar = document.getElementById('agentFilterBar');
+  if (!bar) return;
+  const showing = bar.style.display !== 'none';
+  if (!showing) {
+    // build checkboxes
+    const agents = allAgents();
+    const selected = getSelectedAgents();
+    document.getElementById('agentFilterList').innerHTML = agents.map(a =>
+      `<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);cursor:pointer;padding:3px 8px;background:var(--glass);border:1px solid var(--border);border-radius:20px">
+        <input type="checkbox" data-agent="${a}" ${!selected.length||selected.includes(a)?'checked':''} style="accent-color:var(--accent)"/> ${a}
+      </label>`
+    ).join('');
+  }
+  bar.style.display = showing ? 'none' : 'block';
+}
+
+function selectAllAgentFilters(check) {
+  document.querySelectorAll('#agentFilterList input[data-agent]').forEach(cb => cb.checked = check);
+}
+
+function getSelectedAgents() {
+  const cbs = document.querySelectorAll('#agentFilterList input[data-agent]:checked');
+  if (!cbs.length) return []; // empty = all
+  return [...cbs].map(cb => cb.dataset.agent);
+}
+
+function setAgentDateRange(mode) {
+  const now = new Date();
+  let from, to;
+  if (mode === 'month') {
+    from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    to   = new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().split('T')[0];
+  } else if (mode === 'week') {
+    const day = now.getDay(), diff = now.getDate() - day + (day===0?-6:1);
+    from = new Date(now.setDate(diff)).toISOString().split('T')[0];
+    to   = new Date(new Date().setDate(new Date().getDate()+(7-new Date().getDay()||7))).toISOString().split('T')[0];
+  } else {
+    from = ''; to = '';
+  }
+  const f = document.getElementById('agentFrom'), t = document.getElementById('agentTo');
+  if (f) f.value = from||'';
+  if (t) t.value = to||'';
+  renderAgent();
+}
+
+// ── AGENT PICKER (per-tab) ───────────────────────────────────
+const _pickerState = {}; // { tabId: Set of excluded agents }
+
+function openAgentPicker(tabId, renderFn) {
+  const drop = document.getElementById(tabId+'AgentPickerDrop');
+  if (!drop) return;
+  const isOpen = drop.style.display !== 'none';
+  // close all others
+  ['qual','prod','perf','overview'].forEach(t => {
+    const d = document.getElementById(t+'AgentPickerDrop');
+    if (d) d.style.display = 'none';
+  });
+  if (isOpen) return;
+  // build checkboxes
+  const agents = allAgents();
+  const excluded = _pickerState[tabId] || new Set();
+  document.getElementById(tabId+'AgentCheckboxes').innerHTML = agents.map(a =>
+    `<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);cursor:pointer">
+      <input type="checkbox" data-agent="${a}" ${!excluded.has(a)?'checked':''} style="accent-color:var(--accent)"/> ${a}
+    </label>`
+  ).join('');
+  drop.style.display = 'block';
+  // close on outside click
+  setTimeout(() => {
+    document.addEventListener('click', function handler(e) {
+      if (!drop.contains(e.target) && !e.target.closest(`[onclick*="${tabId}"]`)) {
+        drop.style.display = 'none';
+        document.removeEventListener('click', handler);
+      }
+    });
+  }, 50);
+}
+
+function closeAgentPicker(tabId) {
+  // save state from checkboxes
+  const excluded = new Set();
+  document.querySelectorAll(`#${tabId}AgentCheckboxes input[data-agent]`).forEach(cb => {
+    if (!cb.checked) excluded.add(cb.dataset.agent);
+  });
+  _pickerState[tabId] = excluded;
+  // update badge
+  const count = document.getElementById(tabId+'AgentCount');
+  if (count) {
+    const total = allAgents().length;
+    const shown = total - excluded.size;
+    count.textContent = excluded.size > 0 ? `(${shown}/${total})` : '';
+  }
+  const drop = document.getElementById(tabId+'AgentPickerDrop');
+  if (drop) drop.style.display = 'none';
+}
+
+function pickAllAgents(tabId, check, renderFn) {
+  document.querySelectorAll(`#${tabId}AgentCheckboxes input[data-agent]`).forEach(cb => cb.checked = check);
+}
+
+function getTabAgents(tabId) {
+  const all = allAgents();
+  const excluded = _pickerState[tabId];
+  if (!excluded || !excluded.size) return all;
+  return all.filter(a => !excluded.has(a));
+}
+
+function emptyHtml(h,p) {
+  return `<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/></svg><h3>${h}</h3><p>${p}</p></div>`;
+}
+
+function toast(msg, isErr=false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.cssText = `position:fixed;bottom:24px;right:24px;padding:10px 18px;border-radius:var(--r2);font-size:13px;z-index:999;display:block;animation:fadeUp .2s ease;background:${isErr?'var(--red-g)':'var(--accent-g)'};border:1px solid ${isErr?'rgba(239,68,68,.3)':'rgba(124,90,240,.3)'};color:${isErr?'var(--red)':'var(--accent2)'}`;
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=>el.style.display='none', 2800);
+}
+
+// ════════════════════════════════════════
+// CHARTS — shared Chart.js infrastructure
+// ════════════════════════════════════════
+const CHART_PALETTE = ['#7c5af0','#3b7ef8','#22c55e','#f59e0b','#ef4444','#9b7ff8','#06b6d4','#ec4899','#84cc16','#f97316'];
+function chartColors(n, alpha){
+  return Array.from({length:n},(_,i)=>{
+    const c = CHART_PALETTE[i%CHART_PALETTE.length];
+    return alpha!=null ? hexA(c,alpha) : c;
+  });
+}
+function hexA(hex, a){
+  const n=parseInt(hex.slice(1),16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+}
+function setupChartDefaults(){
+  if (!window.Chart) return;
+  Chart.defaults.color = '#8080a0';
+  Chart.defaults.font.family = "'DM Sans',sans-serif";
+  Chart.defaults.font.size = 11;
+  Chart.defaults.borderColor = 'rgba(255,255,255,.06)';
+  Chart.defaults.maintainAspectRatio = false;
+  Chart.defaults.plugins.legend.labels.color = '#8080a0';
+  Chart.defaults.plugins.legend.labels.boxWidth = 12;
+  Chart.defaults.plugins.legend.labels.padding = 12;
+  Chart.defaults.plugins.tooltip.backgroundColor = '#121226';
+  Chart.defaults.plugins.tooltip.borderColor = 'rgba(255,255,255,.12)';
+  Chart.defaults.plugins.tooltip.borderWidth = 1;
+  Chart.defaults.plugins.tooltip.titleColor = '#eeeef8';
+  Chart.defaults.plugins.tooltip.bodyColor = '#c8c8e0';
+  Chart.defaults.plugins.tooltip.padding = 10;
+}
+// Create (or recreate) a chart by canvas id, auto-destroying any prior instance
+function mkChart(id, config){
+  const el = document.getElementById(id);
+  if (!el || !window.Chart) return;
+  if (S.charts[id]) { try{S.charts[id].destroy();}catch(e){} delete S.charts[id]; }
+  try { S.charts[id] = new Chart(el.getContext('2d'), config); } catch(e){ console.warn('chart error', id, e); }
+}
+const gridAxis = (extra={}) => ({ grid:{color:'rgba(255,255,255,.05)'}, ticks:Object.assign({color:'#8080a0'}, extra.ticks||{}), ...extra });
+// Reusable card+canvas wrapper for a chart
+function chartCard(title, canvasId, badge){
+  return `<div class="card"><div class="card-hd"><span class="card-title">${title}</span>${badge?`<span class="badge bp">${badge}</span>`:''}</div>
+    <div class="card-bd"><div style="position:relative;height:240px"><canvas id="${canvasId}"></canvas></div></div></div>`;
+}
+
+// ════════════════════════════════════════
+// SORTING — reusable for Productivity / Quality / Performance / AUX tables
+// ════════════════════════════════════════
+const SORT = {
+  prod: { col:'pct',   dir:1 },   // achievement asc (worst first)
+  perf: { col:'agent', dir:1 },
+  qual: { col:'date',  dir:-1 },  // newest first
+  aux:  { col:'agent', dir:1 },
+};
+const _sortRender = { prod:()=>renderProductivity(), perf:()=>renderPerformance(), qual:()=>renderQuality(), aux:()=>renderProductivity() };
+function setSort(section, key){
+  const s = SORT[section];
+  if (s.col === key) s.dir *= -1; else { s.col = key; s.dir = (section==='qual'&&key==='date')?-1:1; }
+  (_sortRender[section]||(()=>{}))();
+}
+function sortIndicator(section, key){
+  const s = SORT[section];
+  if (s.col !== key) return '<span style="color:var(--text3)">↕</span>';
+  return s.dir===1 ? '↑' : '↓';
+}
+function sortableTh(section, key, label, extra=''){
+  return `<th class="sortable" ${extra} onclick="setSort('${section}','${key}')">${label} ${sortIndicator(section,key)}</th>`;
+}
+// Sort an array of row-objects by the section's active column using a {key:accessor} map
+function applySort(arr, section, accessors){
+  const s = SORT[section]; const acc = accessors[s.col];
+  if (!acc) return arr;
+  return arr.slice().sort((a,b)=>{
+    let va=acc(a), vb=acc(b);
+    if (typeof va==='string' && typeof vb==='string') return va.localeCompare(vb)*s.dir;
+    va = (va==null||isNaN(va))?-Infinity:va; vb = (vb==null||isNaN(vb))?-Infinity:vb;
+    return (va-vb)*s.dir;
+  });
+}
+
+// ════════════════════════════════════════
+// CSV EXPORT
+// ════════════════════════════════════════
+const _csvCache = {}; // section -> {headers:[], rows:[[]]}
+function csvCell(v){ const s=String(v==null?'':v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; }
+function exportCSV(section){
+  const d = _csvCache[section];
+  if (!d || !d.rows.length){ toast('Nothing to export', true); return; }
+  const lines = [d.headers.map(csvCell).join(',')].concat(d.rows.map(r=>r.map(csvCell).join(',')));
+  const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${section}-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  toast('CSV exported ✓');
+}
+function csvBtn(section){ return `<button class="btn btn-sm" onclick="exportCSV('${section}')">⬇ CSV</button>`; }
+
+// ════════════════════════════════════════
+// PERFORMANCE TARGET HIGHLIGHTING
+// ════════════════════════════════════════
+// dir: 'low' = lower is better (AHT/ART), 'high' = higher is better (CSAT/resolution)
+function targetClass(value, target, dir){
+  const v=parseFloat(value), t=parseFloat(target);
+  if (isNaN(v)||isNaN(t)||!t) return '';
+  const ok = dir==='low' ? v<=t : v>=t;
+  return ok ? 'cg' : 'cr';
+}
+
+// ════════════════════════════════════════
+// DATE-RANGE PRESETS (admin tabs)
+// ════════════════════════════════════════
+function presetRange(mode){
+  const now=new Date(); let from,to;
+  const iso=d=>d.toISOString().split('T')[0];
+  if (mode==='month'){ from=iso(new Date(now.getFullYear(),now.getMonth(),1)); to=iso(new Date(now.getFullYear(),now.getMonth()+1,0)); }
+  else if (mode==='lastmonth'){ from=iso(new Date(now.getFullYear(),now.getMonth()-1,1)); to=iso(new Date(now.getFullYear(),now.getMonth(),0)); }
+  else if (mode==='week'){ const day=now.getDay(),diff=now.getDate()-day+(day===0?-6:1); const mon=new Date(now.getFullYear(),now.getMonth(),diff); from=iso(mon); to=iso(new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6)); }
+  else { from=''; to=''; }
+  return {from,to};
+}
+function setTabRange(prefix, mode, renderFn){
+  const {from,to}=presetRange(mode);
+  const f=document.getElementById(prefix+'From'), t=document.getElementById(prefix+'To');
+  if (f) f.value=from; if (t) t.value=to;
+  saveFilters();
+  (window[renderFn]||(()=>{}))();
+}
+function presetBtns(prefix, renderFn){
+  return `<span style="display:inline-flex;gap:4px;flex-wrap:wrap">
+    <button class="btn btn-sm" onclick="setTabRange('${prefix}','week','${renderFn}')">This Week</button>
+    <button class="btn btn-sm" onclick="setTabRange('${prefix}','month','${renderFn}')">This Month</button>
+    <button class="btn btn-sm" onclick="setTabRange('${prefix}','lastmonth','${renderFn}')">Last Month</button>
+    <button class="btn btn-sm" onclick="setTabRange('${prefix}','all','${renderFn}')">All Time</button>
+  </span>`;
+}
+
+// ════════════════════════════════════════
+// PERSISTED FILTERS (per device)
+// ════════════════════════════════════════
+function saveFilters(){
+  const f = {};
+  ['qual','prod','perf'].forEach(p=>{
+    const from=(document.getElementById(p+'From')||{}).value||''; const to=(document.getElementById(p+'To')||{}).value||'';
+    f[p]={from,to};
+    if (_pickerState[p]) f[p].excluded=[..._pickerState[p]];
+  });
+  f.prodSearch=(document.getElementById('prodSearch')||{}).value||'';
+  f.perfSearch=(document.getElementById('perfSearch')||{}).value||'';
+  ls.set('t_filters', f);
+}
+function restoreFilters(){
+  const f = ls.get('t_filters'); if(!f) return;
+  ['qual','prod','perf'].forEach(p=>{
+    if (!f[p]) return;
+    const from=document.getElementById(p+'From'), to=document.getElementById(p+'To');
+    if (from && f[p].from!=null) from.value=f[p].from;
+    if (to && f[p].to!=null) to.value=f[p].to;
+    if (f[p].excluded) _pickerState[p]=new Set(f[p].excluded);
+  });
+}
+
+// ════════════════════════════════════════
+// AUTO-SYNC
+// ════════════════════════════════════════
+let _autoSyncTimer=null;
+function startAutoSync(){
+  if (_autoSyncTimer) clearInterval(_autoSyncTimer);
+  const mins = parseFloat(S.cfgTargets.autoSyncMins||10);
+  if (!mins || mins<=0) return;
+  _autoSyncTimer = setInterval(()=>{ if (S.mode) syncAll(true); }, mins*60*1000);
+}
+
+// ════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', async () => {
+  loadLocal();
+  setupChartDefaults();
+  const ed = document.getElementById('excDate'); if (ed) ed.value = new Date().toISOString().split('T')[0];
+  // Inject date-range presets into the admin filter bars
+  const fill=(id,html)=>{const e=document.getElementById(id); if(e) e.innerHTML=html;};
+  fill('qualPresets', presetBtns('qual','renderQuality'));
+  fill('prodPresets', presetBtns('prod','renderProductivity'));
+  fill('perfPresets', presetBtns('perf','renderPerformance'));
+  restoreFilters();
+  // Auto-load shared config from Supabase so any device is configured with no setup.
+  await pullGASConfig();
+  startAutoSync();
+});
+</script>
+</body>
+</html>
