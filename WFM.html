@@ -103,6 +103,15 @@ table.list tr:hover td{background:var(--glass)}
 .legend .lg{display:flex;align-items:center;gap:6px}
 .legend .sw{width:22px;height:12px;border-radius:3px}
 
+.agentpanel{display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:20;width:250px;background:var(--bg2);border:1px solid var(--border-s);border-radius:var(--r2);padding:10px;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+.agentpanel.open{display:block}
+.agentpanel input{width:100%;margin-bottom:8px}
+.apbtns{display:flex;gap:6px;margin-bottom:8px}
+.apbtns .btn{flex:1;padding:6px;text-align:center}
+#agentList{max-height:280px;overflow:auto}
+.apitem{display:flex;align-items:center;gap:8px;padding:6px 6px;border-radius:var(--r);cursor:pointer;font-size:13px}
+.apitem:hover{background:var(--glass)}
+.apitem input{width:auto;margin:0}
 .loading{padding:60px;text-align:center;color:var(--text2);font-size:14px}
 .spin{width:26px;height:26px;border:3px solid var(--border-s);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -120,7 +129,6 @@ table.list tr:hover td{background:var(--glass)}
       <div class="sub" id="subline">Loading…</div>
     </div>
     <div class="hbtns">
-      <select id="fromSel"></select><span style="color:var(--text3)">→</span><select id="toSel"></select>
       <button class="btn" id="csvBtn">Export CSV</button>
       <button class="btn primary" id="refreshBtn">↻ Refresh</button>
     </div>
@@ -131,6 +139,7 @@ table.list tr:hover td{background:var(--glass)}
     <button class="tab" data-view="leaderboard">Leaderboard</button>
     <button class="tab" data-view="daybreak">Day Breakdown</button>
     <button class="tab" data-view="exceptions">Exceptions</button>
+    <button class="tab" data-view="rules">Rules</button>
   </div>
 
   <!-- MATRIX -->
@@ -145,7 +154,24 @@ table.list tr:hover td{background:var(--glass)}
         <button data-m="shrink">Shrinkage %</button>
       </div>
       <div class="spacer"></div>
-      <input id="agentFilter" placeholder="Filter agents…" style="width:180px"/>
+      <span class="tool-label">View</span>
+      <div class="metricseg" id="rangeSeg">
+        <button data-r="day">Day</button>
+        <button data-r="week" class="on">Week</button>
+        <button data-r="month">Month</button>
+        <button data-r="all">All</button>
+      </div>
+      <button class="btn" id="rangePrev" title="Previous">‹</button>
+      <span id="rangeLabel" style="font-size:12px;color:var(--text2);min-width:150px;text-align:center"></span>
+      <button class="btn" id="rangeNext" title="Next">›</button>
+      <div style="position:relative">
+        <button class="btn" id="agentBtn">Agents ▾</button>
+        <div class="agentpanel" id="agentPanel">
+          <input id="agentSearch" placeholder="Search…"/>
+          <div class="apbtns"><button class="btn" id="apAll">All</button><button class="btn" id="apNone">None</button></div>
+          <div id="agentList"></div>
+        </div>
+      </div>
     </div>
     <div class="card"><div class="matrix-scroll" id="matrixScroll"><div class="loading"><div class="spin"></div>Reading the sheet…</div></div></div>
     <div class="legend" id="legend"></div>
@@ -183,6 +209,31 @@ table.list tr:hover td{background:var(--glass)}
     </div>
     <div class="card"><div id="excWrap" class="empty">—</div></div>
   </div>
+
+  <!-- RULES -->
+  <div class="view" id="view-rules">
+    <div class="exform" id="rulesForm">
+      <div><label>Shift length (hours)</label><input id="r_shift_hours" type="number" step="0.5"/></div>
+      <div><label>Break target (min)</label><input id="r_break_target_min" type="number"/></div>
+      <div><label>Break tolerance ± (min)</label><input id="r_break_tolerance_min" type="number"/></div>
+      <div><label>Max single break (min)</label><input id="r_break_segment_max_min" type="number"/></div>
+      <div><label>Min break segments</label><input id="r_break_min_segments" type="number"/></div>
+      <div><label>Max break segments</label><input id="r_break_max_segments" type="number"/></div>
+      <div><label>No-break edge window (min)</label><input id="r_break_edge_window_min" type="number"/></div>
+      <div><label>Offline cap (min)</label><input id="r_offline_cap_min" type="number"/></div>
+      <div><label>Late grace (min)</label><input id="r_late_grace_min" type="number"/></div>
+      <div><label>Shift-split gap (min)</label><input id="r_shift_split_gap_min" type="number"/></div>
+      <div><label>Roster match window (min)</label><input id="r_login_match_window_min" type="number"/></div>
+      <div><label>Shrinkage mode</label><select id="r_shrinkage_mode" style="width:100%">
+        <option value="unplanned">unplanned (excuse allowed break/offline)</option>
+        <option value="gross">gross (all non-Available)</option>
+      </select></div>
+      <div style="grid-column:1/-1;display:flex;gap:10px;align-items:center">
+        <button class="btn primary" id="rules_save">💾 Save rules</button>
+        <span style="font-size:12px;color:var(--text3)">Saved to the sheet's <b>Config</b> tab and applied on refresh.</span>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="modal" id="modal"><div class="modal-box" id="modalBox"></div></div>
@@ -190,6 +241,9 @@ table.list tr:hover td{background:var(--glass)}
 
 <script>
 var DATA=null, METRIC='late', gserver=(typeof google!=='undefined'&&google.script&&google.script.run);
+var rangeMode='week', anchorDate=null;
+var hiddenAgents=new Set((JSON.parse(localStorage.getItem('wfm_hidden')||'[]')).map(String));
+function saveHidden(){ localStorage.setItem('wfm_hidden', JSON.stringify(Array.from(hiddenAgents))); }
 
 /* metric definitions -> how each cell reads */
 var METRICS={
@@ -205,47 +259,106 @@ function heat(v,max){ if(!v||v<=0)return 'transparent'; var t=Math.min(1,v/max);
 /* ---------- boot ---------- */
 function load(){
   showLoading();
-  if(gserver){ google.script.run.withSuccessHandler(onData).withFailureHandler(onErr).getDashboardData(currentRange()); }
+  if(gserver){ google.script.run.withSuccessHandler(onData).withFailureHandler(onErr).getDashboardData({}); }
   else { onErr({message:'Open this as a deployed Apps Script web app (google.script.run unavailable).'}); }
 }
-function currentRange(){ var f=document.getElementById('fromSel').value,t=document.getElementById('toSel').value; return (f&&t)?{from:f,to:t}:{}; }
 function onErr(e){ document.getElementById('matrixScroll').innerHTML='<div class="empty">⚠ '+(e&&e.message||e)+'</div>'; }
 function showLoading(){ document.getElementById('matrixScroll').innerHTML='<div class="loading"><div class="spin"></div>Reading the sheet…</div>'; }
 
 function onData(d){
   DATA=d;
-  document.getElementById('subline').textContent=
-    d.agents.length+' agents · '+d.dates.length+' days · shrinkage: '+d.config.shrinkageMode+
-    ' · updated '+new Date(d.generatedAt).toLocaleTimeString();
-  fillRangeSelectors(d.dates);
+  if(d.dates.length && (!anchorDate || anchorDate>d.dates[d.dates.length-1] || anchorDate<d.dates[0]))
+    anchorDate=d.dates[d.dates.length-1];
   fillDaySelector(d.dates);
   fillAgentSelector(d.agents);
-  renderMatrix(); renderLegend(); renderLeaderboard(); renderDay(); renderExceptions();
+  renderAgentPicker();
+  renderAll();
+  renderExceptions();
+  renderRules();
 }
 
-/* ---------- selectors ---------- */
-function fillRangeSelectors(dates){
-  var f=document.getElementById('fromSel'),t=document.getElementById('toSel');
-  if(f.dataset.filled)return;
-  dates.forEach(function(dt){ f.add(new Option(dt,dt)); t.add(new Option(dt,dt)); });
-  if(dates.length){ f.value=dates[0]; t.value=dates[dates.length-1]; f.dataset.filled='1'; }
-  f.onchange=t.onchange=load;
+/* ---------- rules config ---------- */
+var RULE_FIELDS=['shift_hours','break_target_min','break_tolerance_min','break_segment_max_min','break_min_segments','break_max_segments','break_edge_window_min','offline_cap_min','late_grace_min','shift_split_gap_min','login_match_window_min'];
+function renderRules(){
+  var r=DATA&&DATA.rules; if(!r)return;
+  RULE_FIELDS.forEach(function(k){var el=document.getElementById('r_'+k);if(el&&r[k]!=null)el.value=r[k];});
+  var sm=document.getElementById('r_shrinkage_mode'); if(r.shrinkage_mode)sm.value=r.shrinkage_mode;
 }
+function saveRules(){
+  if(!gserver){toast('Deploy as web app to save rules');return;}
+  var obj={};
+  RULE_FIELDS.forEach(function(k){var el=document.getElementById('r_'+k);if(el&&el.value!=='')obj[k]=parseFloat(el.value);});
+  obj.shrinkage_mode=document.getElementById('r_shrinkage_mode').value;
+  toast('Saving rules…');
+  google.script.run.withSuccessHandler(function(d){onData(d);toast('Rules saved ✓');}).withFailureHandler(onErr).saveConfig(obj);
+}
+function renderAll(){
+  updateSub(); updateRangeLabel(); updateAgentBtn();
+  renderMatrix(); renderLegend(); renderLeaderboard(); renderDay();
+}
+function updateSub(){
+  if(!DATA)return;
+  document.getElementById('subline').textContent=
+    visibleAgents().length+'/'+DATA.agents.length+' agents · '+visibleDates().length+' days shown · shrinkage: '+
+    DATA.config.shrinkageMode+' · updated '+new Date(DATA.generatedAt).toLocaleTimeString();
+}
+
+/* ---------- date range (day / week / month / all) ---------- */
+function pad2(n){return n<10?'0'+n:''+n;}
+function ymdStr(dt){return dt.getFullYear()+'-'+pad2(dt.getMonth()+1)+'-'+pad2(dt.getDate());}
+function parseYmd(s){var p=s.split('-');return new Date(+p[0],+p[1]-1,+p[2]);}
+function rangeWindow(){
+  var dates=DATA?DATA.dates:[]; if(!dates.length) return {from:null,to:null};
+  if(rangeMode==='all') return {from:dates[0],to:dates[dates.length-1]};
+  var a=parseYmd(anchorDate);
+  if(rangeMode==='day') return {from:anchorDate,to:anchorDate};
+  if(rangeMode==='week'){ var diff=(a.getDay()+6)%7; var mon=new Date(a); mon.setDate(a.getDate()-diff);
+    var sun=new Date(mon); sun.setDate(mon.getDate()+6); return {from:ymdStr(mon),to:ymdStr(sun)}; }
+  var f=new Date(a.getFullYear(),a.getMonth(),1), t=new Date(a.getFullYear(),a.getMonth()+1,0);
+  return {from:ymdStr(f),to:ymdStr(t)};
+}
+function visibleDates(){ var w=rangeWindow(); return (DATA?DATA.dates:[]).filter(function(dt){return (!w.from||dt>=w.from)&&(!w.to||dt<=w.to);}); }
+function visibleAgents(){ return (DATA?DATA.agents:[]).filter(function(a){return !hiddenAgents.has(String(a.id));}); }
+function stepRange(dir){
+  if(rangeMode==='all'||!DATA||!DATA.dates.length)return;
+  var a=parseYmd(anchorDate);
+  if(rangeMode==='day')a.setDate(a.getDate()+dir);
+  else if(rangeMode==='week')a.setDate(a.getDate()+7*dir);
+  else a.setMonth(a.getMonth()+dir);
+  var first=DATA.dates[0], last=DATA.dates[DATA.dates.length-1], s=ymdStr(a);
+  if(s<first)s=first; if(s>last)s=last; anchorDate=s; renderAll();
+}
+function updateRangeLabel(){
+  var el=document.getElementById('rangeLabel'), w=rangeWindow();
+  if(!w.from){el.textContent='';return;}
+  el.textContent = rangeMode==='all' ? 'All dates' : (rangeMode==='day'? w.from : (w.from+' → '+w.to));
+}
+
+/* ---------- agent picker ---------- */
+function renderAgentPicker(){
+  var q=(document.getElementById('agentSearch').value||'').toLowerCase();
+  document.getElementById('agentList').innerHTML=DATA.agents
+    .filter(function(a){return !q||a.name.toLowerCase().indexOf(q)>=0;})
+    .map(function(a){var on=!hiddenAgents.has(String(a.id));
+      return '<label class="apitem"><input type="checkbox" data-id="'+a.id+'" '+(on?'checked':'')+'/> '+a.name+'</label>';}).join('');
+}
+function updateAgentBtn(){ if(DATA) document.getElementById('agentBtn').textContent='Agents ('+visibleAgents().length+'/'+DATA.agents.length+') ▾'; }
+
+/* ---------- selectors ---------- */
 function fillDaySelector(dates){ var s=document.getElementById('dayeSel'); s.innerHTML=''; dates.forEach(function(dt){s.add(new Option(dt,dt));}); if(dates.length)s.value=dates[dates.length-1]; s.onchange=renderDay; }
 function fillAgentSelector(agents){ var s=document.getElementById('ex_agent'); s.innerHTML=''; agents.forEach(function(a){s.add(new Option(a.name+' (#'+a.id+')',a.id));}); }
 
 /* ---------- matrix ---------- */
 function renderMatrix(){
-  var d=DATA,mdef=METRICS[METRIC],filt=(document.getElementById('agentFilter').value||'').toLowerCase();
-  var agents=d.agents.filter(function(a){return !filt||a.name.toLowerCase().indexOf(filt)>=0;});
-  if(!agents.length||!d.dates.length){document.getElementById('matrixScroll').innerHTML='<div class="empty">No data for this range.</div>';return;}
+  var d=DATA,mdef=METRICS[METRIC],agents=visibleAgents(),dates=visibleDates();
+  if(!agents.length||!dates.length){document.getElementById('matrixScroll').innerHTML='<div class="empty">No data for this selection.</div>';return;}
   var h='<table class="matrix"><thead><tr><th class="corner">Agent</th>';
-  d.dates.forEach(function(dt){var o=dow(dt);h+='<th class="'+(o.we?'we':'')+'"><div class="dhead '+(o.we?'we':'')+'"><span class="dow">'+o.dw+'</span><span class="dnum">'+o.dn+'</span></div></th>';});
+  dates.forEach(function(dt){var o=dow(dt);h+='<th class="'+(o.we?'we':'')+'"><div class="dhead '+(o.we?'we':'')+'"><span class="dow">'+o.dw+'</span><span class="dnum">'+o.dn+'</span></div></th>';});
   h+='<th class="totcol tot">Σ</th></tr></thead><tbody>';
   agents.forEach(function(a){
     h+='<tr><th class="agent" title="'+a.name+'">'+a.name+'</th>';
     var rowTot=0,rowCnt=0;
-    d.dates.forEach(function(dt){
+    dates.forEach(function(dt){
       var c=d.cells[a.id]&&d.cells[a.id][dt];
       if(!c){h+='<td><span class="cell clean">·</span></td>';return;}
       var g=mdef.get(c); rowTot+=g.v||0; rowCnt+=g.c||0;
@@ -255,12 +368,12 @@ function renderMatrix(){
       var exc=(c.appliedExceptions&&c.appliedExceptions.length)?'<span class="exc" title="exception applied"></span>':'';
       h+='<td style="background:'+bg+'"><span class="cell'+(g.v?'':' clean')+'" onclick="drill(\''+a.id+'\',\''+dt+'\')"><span class="v">'+(val||'·')+'</span>'+cnt+exc+'</span></td>';
     });
-    var rowShow=(METRIC==='shrink')?(d.dates.length?Math.round(rowTot/d.dates.length*10)/10:0):rowTot;
+    var rowShow=(METRIC==='shrink')?(dates.length?Math.round(rowTot/dates.length*10)/10:0):rowTot;
     h+='<td class="tot"><span class="cell"><span class="v">'+fmtRowTot(rowShow)+'</span>'+(rowCnt?'<span class="c">×'+rowCnt+'</span>':'')+'</span></td></tr>';
   });
   // totals row
   h+='<tr class="totrow"><th class="agent">Daily total</th>';
-  d.dates.forEach(function(dt){
+  dates.forEach(function(dt){
     var sum=0,cnt=0;
     agents.forEach(function(a){var c=d.cells[a.id]&&d.cells[a.id][dt];if(c){var g=METRICS[METRIC].get(c);sum+=g.v||0;cnt+=g.c||0;}});
     h+='<td><span class="cell"><span class="v">'+fmtRowTot(sum)+'</span>'+(cnt?'<span class="c">×'+cnt+'</span>':'')+'</span></td>';
@@ -315,13 +428,20 @@ function closeModal(){document.getElementById('modal').classList.remove('open');
 function tm(iso){if(!iso)return '';var p=iso.split('T');return p[1]?p[1].slice(0,5):p[0];}
 function statusColor(s){s=s.toLowerCase();if(s.indexOf('available')>=0&&s.indexOf('un')<0)return 'var(--green)';if(s.indexOf('break')>=0)return 'var(--amber)';if(s.indexOf('offline')>=0)return 'var(--red)';if(s.indexOf('unavailable')>=0)return 'var(--text3)';if(s.indexOf('personal')>=0)return '#a855f7';return 'var(--blue)';}
 
-/* ---------- leaderboard ---------- */
+/* ---------- leaderboard (respects agent + date filters) ---------- */
 function renderLeaderboard(){
-  var d=DATA,rows=[];
-  d.agents.forEach(function(a){
-    var t=d.totals.perAgent[a.id]; if(!t)return;
-    var total=t.lateCnt+t.breakCnt+t.offlineCnt+(t.shortMin>0?1:0);
-    rows.push({name:a.name,shifts:t.shifts,late:t.lateCnt,lateMin:Math.round(t.lateMin),brk:t.breakCnt,brkMin:Math.round(t.breakMin),off:t.offlineCnt,offMin:Math.round(t.offlineMin),shrink:t.shifts?Math.round(t.shrinkSum/t.shifts*10)/10:0,total:t.lateCnt+t.breakCnt+t.offlineCnt});
+  var dts=visibleDates(),agents=visibleAgents(),rows=[];
+  agents.forEach(function(a){
+    var t={shifts:0,lateCnt:0,lateMin:0,brkCnt:0,brkMin:0,offCnt:0,offMin:0,shortMin:0,shrinkSum:0};
+    dts.forEach(function(dt){var c=DATA.cells[a.id]&&DATA.cells[a.id][dt];if(!c)return;
+      t.shifts++;
+      if(c.isLate){t.lateCnt++;t.lateMin+=c.lateMin;}
+      if(c.breakExceeded){t.brkCnt++;t.brkMin+=c.breakOverMin;}
+      if(c.offlineExceeded){t.offCnt++;t.offMin+=c.offlineExcess;}
+      if(c.shortfallMin>0)t.shortMin+=c.shortfallMin;
+      t.shrinkSum+=c.buckets.shrinkagePct;});
+    if(!t.shifts)return;
+    rows.push({name:a.name,shifts:t.shifts,late:t.lateCnt,lateMin:Math.round(t.lateMin),brk:t.brkCnt,brkMin:Math.round(t.brkMin),off:t.offCnt,offMin:Math.round(t.offMin),shrink:Math.round(t.shrinkSum/t.shifts*10)/10,total:t.lateCnt+t.brkCnt+t.offCnt});
   });
   rows.sort(function(a,b){return b.total-a.total;});
   var max=Math.max(1,rows[0]?rows[0].total:1);
@@ -338,7 +458,7 @@ function renderLeaderboard(){
 function renderDay(){
   if(!DATA)return;
   var dt=document.getElementById('dayeSel').value,d=DATA,groups={Late:[],Break:[],Offline:[],'Early leave':[]};
-  d.agents.forEach(function(a){
+  visibleAgents().forEach(function(a){
     var c=d.cells[a.id]&&d.cells[a.id][dt]; if(!c)return;
     if(c.isLate)groups.Late.push(a.name+' — '+c.lateMin+'m');
     if(c.breakExceeded)groups.Break.push(a.name+' — '+c.breakRules.join(', ')+(c.breakOverMin?' ('+c.breakOverMin+'m over)':''));
@@ -379,8 +499,8 @@ function delEx(i){ google.script.run.withSuccessHandler(function(d){onData(d);to
 
 /* ---------- csv ---------- */
 function exportCSV(){
-  var d=DATA,m=METRICS[METRIC],lines=[['Agent'].concat(d.dates).concat(['Total'])];
-  d.agents.forEach(function(a){var row=[a.name],tot=0;d.dates.forEach(function(dt){var c=d.cells[a.id]&&d.cells[a.id][dt];var v=c?m.get(c).v:'';if(v)tot+=v;row.push(v);});row.push(Math.round(tot*10)/10);lines.push(row);});
+  var d=DATA,m=METRICS[METRIC],dates=visibleDates(),agents=visibleAgents(),lines=[['Agent'].concat(dates).concat(['Total'])];
+  agents.forEach(function(a){var row=[a.name],tot=0;dates.forEach(function(dt){var c=d.cells[a.id]&&d.cells[a.id][dt];var v=c?m.get(c).v:'';if(v)tot+=v;row.push(v);});row.push(Math.round(tot*10)/10);lines.push(row);});
   var csv=lines.map(function(r){return r.map(function(x){return '"'+String(x==null?'':x).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
   var b=new Blob([csv],{type:'text/csv'}),u=URL.createObjectURL(b),a=document.createElement('a');
   a.href=u;a.download='wfm_'+METRIC+'.csv';a.click();URL.revokeObjectURL(u);
@@ -389,11 +509,22 @@ function exportCSV(){
 /* ---------- ui wiring ---------- */
 function toast(t){var e=document.getElementById('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(function(){e.classList.remove('show');},2200);}
 document.getElementById('metricSeg').addEventListener('click',function(e){if(e.target.dataset.m){METRIC=e.target.dataset.m;[].forEach.call(this.children,function(b){b.classList.toggle('on',b.dataset.m===METRIC);});renderMatrix();renderLegend();}});
+document.getElementById('rangeSeg').addEventListener('click',function(e){if(e.target.dataset.r){rangeMode=e.target.dataset.r;[].forEach.call(this.children,function(b){b.classList.toggle('on',b.dataset.r===rangeMode);});renderAll();}});
+document.getElementById('rangePrev').onclick=function(){stepRange(-1);};
+document.getElementById('rangeNext').onclick=function(){stepRange(1);};
 document.querySelectorAll('.tab').forEach(function(t){t.onclick=function(){document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active');});t.classList.add('active');document.querySelectorAll('.view').forEach(function(v){v.classList.remove('active');});document.getElementById('view-'+t.dataset.view).classList.add('active');};});
-document.getElementById('agentFilter').addEventListener('input',renderMatrix);
+/* agent picker */
+document.getElementById('agentBtn').onclick=function(e){e.stopPropagation();document.getElementById('agentPanel').classList.toggle('open');};
+document.getElementById('agentPanel').addEventListener('click',function(e){e.stopPropagation();});
+document.getElementById('agentSearch').addEventListener('input',renderAgentPicker);
+document.getElementById('agentList').addEventListener('change',function(e){var id=e.target.getAttribute('data-id');if(id==null)return;if(e.target.checked)hiddenAgents.delete(String(id));else hiddenAgents.add(String(id));saveHidden();updateAgentBtn();updateSub();renderMatrix();renderLeaderboard();renderDay();});
+document.getElementById('apAll').onclick=function(){hiddenAgents.clear();saveHidden();renderAgentPicker();updateAgentBtn();updateSub();renderMatrix();renderLeaderboard();renderDay();};
+document.getElementById('apNone').onclick=function(){DATA.agents.forEach(function(a){hiddenAgents.add(String(a.id));});saveHidden();renderAgentPicker();updateAgentBtn();updateSub();renderMatrix();renderLeaderboard();renderDay();};
+document.addEventListener('click',function(){document.getElementById('agentPanel').classList.remove('open');});
 document.getElementById('refreshBtn').onclick=load;
 document.getElementById('csvBtn').onclick=exportCSV;
 document.getElementById('ex_save').onclick=saveEx;
+document.getElementById('rules_save').onclick=saveRules;
 document.getElementById('modal').addEventListener('click',function(e){if(e.target===this)closeModal();});
 load();
 </script>

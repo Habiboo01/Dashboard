@@ -103,6 +103,55 @@ function readAgents_() {
   return { byId: byId, byName: byName };
 }
 
+/** Config tab (setting | value) overrides the CONFIG thresholds. Call before scoring. */
+var CONFIG_MAP = {
+  shift_hours: 'SHIFT_HOURS',
+  break_target_min: 'BREAK_TARGET_MIN',
+  break_tolerance_min: 'BREAK_TOLERANCE_MIN',
+  break_segment_max_min: 'BREAK_SEGMENT_MAX_MIN',
+  break_min_segments: 'BREAK_MIN_SEGMENTS',
+  break_max_segments: 'BREAK_MAX_SEGMENTS',
+  break_edge_window_min: 'BREAK_EDGE_WINDOW_MIN',
+  offline_cap_min: 'OFFLINE_CAP_MIN',
+  late_grace_min: 'LATE_GRACE_MIN',
+  shift_split_gap_min: 'SHIFT_SPLIT_GAP_MIN',
+  login_match_window_min: 'LOGIN_MATCH_WINDOW_MIN'
+};
+
+function applyConfigOverrides_() {
+  var data = readSheetObjects_('Config');
+  data.rows.forEach(function (r) {
+    var k = String(r['setting'] || '').trim().toLowerCase();
+    var v = r['value'];
+    if (k === 'shrinkage_mode') { if (v) CONFIG.SHRINKAGE_MODE = String(v).trim().toLowerCase(); return; }
+    if (CONFIG_MAP[k] && v !== '' && v != null && isFinite(parseFloat(v))) CONFIG[CONFIG_MAP[k]] = parseFloat(v);
+  });
+  CONFIG.SHIFT_MINUTES = CONFIG.SHIFT_HOURS * 60;
+}
+
+function getRulesSnapshot_() {
+  var out = { shrinkage_mode: CONFIG.SHRINKAGE_MODE };
+  Object.keys(CONFIG_MAP).forEach(function (k) { out[k] = CONFIG[CONFIG_MAP[k]]; });
+  return out;
+}
+
+/** Current rule config for the UI. */
+function getConfig() {
+  applyConfigOverrides_();
+  return getRulesSnapshot_();
+}
+
+/** Write the rule config back to the Config tab (creates it if missing), returns fresh data. */
+function saveConfig(obj) {
+  var sh = ss_().getSheetByName('Config');
+  if (!sh) sh = ss_().insertSheet('Config');
+  sh.clear();
+  var rows = [['setting', 'value']];
+  Object.keys(obj).forEach(function (k) { rows.push([k, obj[k]]); });
+  sh.getRange(1, 1, rows.length, 2).setValues(rows);
+  return getDashboardData();
+}
+
 function readAuxBuckets_() {
   var map = {};
   Object.keys(DEFAULT_AUX_BUCKETS).forEach(function (k) { map[k] = DEFAULT_AUX_BUCKETS[k]; });
@@ -542,6 +591,7 @@ function applyWrongAux_(shift, e) {
  */
 function getDashboardData(opts) {
   opts = opts || {};
+  applyConfigOverrides_();
   var agents = readAgents_();
   var auxBuckets = readAuxBuckets_();
   var rawByAgent = readRawStatuses_();
@@ -585,6 +635,7 @@ function getDashboardData(opts) {
       offlineCap: CONFIG.OFFLINE_CAP_MIN, lateGrace: CONFIG.LATE_GRACE_MIN,
       shrinkageMode: CONFIG.SHRINKAGE_MODE
     },
+    rules: getRulesSnapshot_(),
     auxBuckets: auxBuckets,
     agents: agentList,
     dates: dates,

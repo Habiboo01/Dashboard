@@ -63,6 +63,16 @@ status_name | bucket        (bucket = productive | shrinkage | nonproductive | n
 Defaults: Available = productive; Meeting/Jira/Calls/Email = shrinkage;
 Break/Personal Time/Upcoming Offline/Unavailable = nonproductive; System Issue = neutral.
 
+### `Config` — optional, to change the rule thresholds (or edit them in the **Rules** tab in the app)
+```
+setting | value
+```
+Recognised settings (blank tab = built-in defaults): `shift_hours` (9), `break_target_min` (60),
+`break_tolerance_min` (5), `break_segment_max_min` (30), `break_min_segments` (2),
+`break_max_segments` (3), `break_edge_window_min` (60), `offline_cap_min` (20), `late_grace_min` (5),
+`shift_split_gap_min` (120), `login_match_window_min` (180), `shrinkage_mode` (`unplanned` | `gross`).
+The **Rules** tab in the dashboard writes this tab for you; changes apply on the next refresh.
+
 ## 2. Add the script
 1. In the Sheet: **Extensions → Apps Script**.
 2. Create files matching this repo: `Code.gs`, `WFM.html` (Apps Script calls it "WFM"), `Tests.gs`,
@@ -87,3 +97,11 @@ Open the web-app URL. Adjust the timezone in `appsscript.json` if your team isn'
 Late (min) · Break over (min) · Offline over 20 (min) · Early leave / short shift (min) · Shrinkage %.
 Cells show minutes and a `×N` violation count, color-scaled by severity; a blue dot marks an applied
 exception. Click any cell for the full status timeline and which rules tripped. Export the current grid to CSV.
+
+## Filtering the view
+- **Agents dropdown** (top-right of the Matrix): tick/untick to show or hide specific agents everywhere
+  (matrix, leaderboard, day breakdown, CSV). Your choice is remembered in the browser. Use **All / None**
+  to bulk toggle, or the search box to find someone. (This is on top of the `Include in Reports` sheet
+  toggle, which removes an agent from the data entirely.)
+- **View switch** (Day / Week / Month / All) with the ‹ › arrows steps through periods, so you can look
+  at a single day, one week, or a whole month. The leaderboard and CSV follow the selected window.
