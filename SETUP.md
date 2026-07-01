@@ -96,7 +96,19 @@ Open the web-app URL. Adjust the timezone in `appsscript.json` if your team isn'
 ## Metrics in the matrix toggle
 Late (min) · Break over (min) · Offline over 20 (min) · Early leave / short shift (min) · Shrinkage %.
 Cells show minutes and a `×N` violation count, color-scaled by severity; a blue dot marks an applied
-exception. Click any cell for the full status timeline and which rules tripped. Export the current grid to CSV.
+exception. **Click a cell** for that day's full status timeline, break/shrinkage durations and which
+rules tripped. **Click an agent's name** for their totals over the selected window (break duration,
+shrinkage duration, productive time, late/offline/early-leave, plus a per-day list). Export the grid to CSV.
+
+### The last (Σ) column
+The right-most column per agent is their **total of the selected metric** for the shown period
+(e.g. total late minutes), with `×N` = number of days flagged. For **Shrinkage %** it's the **average**
+instead of a total. The header shows the active metric and hovering any total explains it.
+
+## MTD tab (month-to-date totals)
+A per-agent table for a chosen month: **break duration**, **shrinkage duration**, average shrinkage %,
+offline-over minutes, late count/minutes, break- and offline-exceed counts, and early-leave minutes.
+Pick the month at the top; respects the agent filter; export to CSV. Use this for the end-of-month review.
 
 ## Filtering the view
 - **Agents dropdown** (top-right of the Matrix): tick/untick to show or hide specific agents everywhere
