@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<base target="_top"/>
+<style>
+  :root{
+    --bg:#070710;--bg2:#121226;--bg3:#181830;
+    --border:rgba(255,255,255,.09);--border-s:rgba(255,255,255,.14);
+    --text:#eeeef8;--text2:#8080a0;--text3:#55557a;
+    --accent:#7c5af0;--accent2:#9b7ff8;--accent-g:rgba(124,90,240,.14);
+    --green:#22c55e;--amber:#f59e0b;--red:#ef4444;
+    --r:10px;--r2:14px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'DM Sans',system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  .wrap{max-width:760px;margin:0 auto;padding:28px 18px 80px}
+  .logo{font-weight:800;font-size:22px;letter-spacing:-.5px;margin-bottom:2px}
+  .logo span{color:var(--accent2)}
+  .sub{color:var(--text2);font-size:13px;margin-bottom:22px}
+  .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:18px;margin-bottom:16px}
+  .card h2{font-size:15px;margin-bottom:12px}
+  .row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;font-size:13.5px;border-bottom:1px solid var(--border)}
+  .row:last-child{border-bottom:0}
+  .row .k{color:var(--text2)}
+  .row .v{font-weight:600;text-align:right}
+  .btn{background:var(--accent);color:#fff;border:0;border-radius:var(--r);padding:11px 18px;
+       font-weight:600;font-size:14px;cursor:pointer}
+  .btn:hover{background:var(--accent2)}
+  .btn.sec{background:var(--bg3);border:1px solid var(--border-s)}
+  .btn:disabled{opacity:.5;cursor:default}
+  .btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+  label{display:block;font-size:12.5px;color:var(--text2);margin:12px 0 5px}
+  input,select,textarea{width:100%;background:var(--bg3);border:1px solid var(--border-s);border-radius:var(--r);
+       color:var(--text);font-size:14px;padding:11px 12px;outline:none;font-family:inherit}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+  textarea{min-height:70px;resize:vertical}
+  .note{font-size:12px;color:var(--text3);margin-top:6px}
+  .ok{color:var(--green)}.warn{color:var(--amber)}.err{color:var(--red)}
+  .status{font-size:13px;margin-top:10px;min-height:18px}
+  .spin{width:16px;height:16px;border:2px solid var(--border-s);border-top-color:var(--accent);
+        border-radius:50%;animation:sp .7s linear infinite;display:inline-block;vertical-align:middle}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .ovlist{margin-top:12px;font-size:13px}
+  .ovlist .item{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)}
+  .ovlist .item .t{font-weight:600}
+  .ovlist .item .w{color:var(--text2);flex:1;text-align:right;word-break:break-word}
+  a{color:var(--accent2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo">telda<span>~</span> Support · Admin</div>
+  <div class="sub" id="who">Loading…</div>
+
+  <div class="card">
+    <h2>Knowledge base status</h2>
+    <div class="row"><span class="k">Topics loaded</span><span class="v" id="s-count">—</span></div>
+    <div class="row"><span class="k">Source</span><span class="v" id="s-source">—</span></div>
+    <div class="row"><span class="k">Last Notion sync</span><span class="v" id="s-sync">—</span></div>
+    <div class="row"><span class="k">Notion configured</span><span class="v" id="s-notion">—</span></div>
+    <div class="row"><span class="k">Data sheet (logs + keywords)</span><span class="v" id="s-sheet">—</span></div>
+  </div>
+
+  <div class="card">
+    <h2>Sync from Notion</h2>
+    <div class="note">Pulls the latest topic content from the Notion KB into the search index. A daily
+      auto-sync can also run in the background.</div>
+    <div class="btns">
+      <button class="btn" id="syncBtn" onclick="syncNow()">Sync from Notion now</button>
+      <button class="btn sec" id="trigBtn" onclick="installTrigger()">Enable daily auto-sync</button>
+    </div>
+    <div class="status" id="syncStatus"></div>
+  </div>
+
+  <div class="card">
+    <h2>Search keywords / synonyms</h2>
+    <div class="note">Add extra words (English or Egyptian Arabic) so agents' phrasing matches a topic.
+      Comma-separated. These survive Notion syncs.</div>
+    <label>Topic</label>
+    <select id="topic"></select>
+    <label>Extra keywords</label>
+    <textarea id="kw" dir="auto" placeholder="e.g. money didn't show, المبلغ ماوصلش, deposit missing"></textarea>
+    <div class="btns"><button class="btn" id="saveKw" onclick="saveKeywords()">Save keywords</button></div>
+    <div class="status" id="kwStatus"></div>
+    <div class="ovlist" id="ovlist"></div>
+  </div>
+</div>
+
+<script>
+  var TITLES = [];
+  function esc(s){ return String(s==null?'':s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  function loadStatus(){
+    google.script.run.withSuccessHandler(function(st){
+      document.getElementById('who').textContent = 'Signed in as ' + st.email;
+      document.getElementById('s-count').textContent = st.topicCount;
+      document.getElementById('s-source').textContent = st.source;
+      document.getElementById('s-sync').textContent = st.lastSync;
+      var n = document.getElementById('s-notion');
+      n.innerHTML = st.notionConfigured ? '<span class="ok">yes</span>'
+                                        : '<span class="warn">no (set NOTION_TOKEN & NOTION_PARENT_ID)</span>';
+      document.getElementById('s-sheet').innerHTML =
+        '<a href="'+esc(st.dataSheetUrl)+'" target="_blank" rel="noopener">open</a>';
+      TITLES = st.titles || [];
+      var sel = document.getElementById('topic');
+      sel.innerHTML = TITLES.map(function(t){ return '<option>'+esc(t)+'</option>'; }).join('');
+    }).withFailureHandler(function(e){
+      document.getElementById('who').innerHTML = '<span class="err">'+esc(e.message||e)+'</span>';
+    }).getAdminStatus();
+  }
+
+  function loadOverrides(){
+    google.script.run.withSuccessHandler(function(list){
+      var el = document.getElementById('ovlist');
+      if(!list.length){ el.innerHTML=''; return; }
+      el.innerHTML = '<div style="color:var(--text3);margin:6px 0">Current overrides:</div>' +
+        list.map(function(o){
+          return '<div class="item"><span class="t">'+esc(o.title)+'</span><span class="w" dir="auto">'+esc(o.keywords)+'</span></div>';
+        }).join('');
+    }).getKeywordOverrides();
+  }
+
+  function syncNow(){
+    var b=document.getElementById('syncBtn'), s=document.getElementById('syncStatus');
+    b.disabled=true; s.innerHTML='<span class="spin"></span> Syncing from Notion… (this can take ~1 min)';
+    google.script.run.withSuccessHandler(function(r){
+      b.disabled=false; s.innerHTML='<span class="ok">Synced '+r.topicCount+' topics from '+r.categories+' categories.</span>';
+      loadStatus();
+    }).withFailureHandler(function(e){
+      b.disabled=false; s.innerHTML='<span class="err">'+esc(e.message||e)+'</span>';
+    }).adminSyncNow();
+  }
+
+  function installTrigger(){
+    var b=document.getElementById('trigBtn'), s=document.getElementById('syncStatus');
+    b.disabled=true;
+    google.script.run.withSuccessHandler(function(){
+      b.disabled=false; s.innerHTML='<span class="ok">Daily auto-sync enabled.</span>';
+    }).withFailureHandler(function(e){
+      b.disabled=false; s.innerHTML='<span class="err">'+esc(e.message||e)+'</span>';
+    }).installDailyTrigger();
+  }
+
+  function saveKeywords(){
+    var title=document.getElementById('topic').value;
+    var kw=document.getElementById('kw').value;
+    var b=document.getElementById('saveKw'), s=document.getElementById('kwStatus');
+    b.disabled=true; s.textContent='Saving…';
+    google.script.run.withSuccessHandler(function(){
+      b.disabled=false; s.innerHTML='<span class="ok">Saved.</span>'; loadOverrides();
+    }).withFailureHandler(function(e){
+      b.disabled=false; s.innerHTML='<span class="err">'+esc(e.message||e)+'</span>';
+    }).setKeywords(title, kw);
+  }
+
+  loadStatus(); loadOverrides();
+</script>
+</body>
+</html>
