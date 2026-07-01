@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>WFM Adherence Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#070710;--bg1:#0d0d1c;--bg2:#121226;--bg3:#181830;
+  --glass:rgba(255,255,255,.035);--glass-h:rgba(255,255,255,.06);
+  --border:rgba(255,255,255,.07);--border-s:rgba(255,255,255,.12);
+  --text:#eeeef8;--text2:#8080a0;--text3:#4a4a68;
+  --accent:#7c5af0;--accent2:#9b7ff8;
+  --blue:#3b7ef8;--green:#22c55e;--red:#ef4444;--amber:#f59e0b;--teal:#14b8a6;
+  --r:8px;--r2:12px;--r3:16px;
+  --fd:'Syne',sans-serif;--f:'DM Sans',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--f);background:var(--bg);color:var(--text);min-height:100vh}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(124,90,240,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(124,90,240,.02) 1px,transparent 1px);background-size:52px 52px;pointer-events:none;z-index:0}
+.wrap{position:relative;z-index:1;max-width:1600px;margin:0 auto;padding:20px 24px 60px}
+
+/* header */
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.logo{font-family:var(--fd);font-size:24px;font-weight:800}
+.logo span{color:var(--accent2)}
+.sub{font-size:12px;color:var(--text2);margin-top:2px}
+.hbtns{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{background:var(--glass);border:1px solid var(--border-s);color:var(--text);font-family:var(--f);font-size:13px;font-weight:500;padding:9px 14px;border-radius:var(--r2);cursor:pointer;transition:all .15s}
+.btn:hover{background:var(--glass-h);border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent)}
+.btn.primary:hover{opacity:.88}
+select,input{background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:var(--f);font-size:13px;padding:8px 10px;border-radius:var(--r);outline:none}
+select:focus,input:focus{border-color:var(--accent)}
+
+/* tabs */
+.tabs{display:flex;gap:4px;background:var(--bg2);border:1px solid var(--border);border-radius:30px;padding:4px;margin-bottom:16px;width:fit-content}
+.tab{padding:8px 18px;border-radius:24px;border:none;background:transparent;color:var(--text2);font-family:var(--f);font-size:13px;font-weight:500;cursor:pointer;transition:all .15s}
+.tab.active{background:var(--accent);color:#fff}
+
+/* toolbar */
+.toolbar{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:12px 16px}
+.metricseg{display:flex;gap:2px;background:var(--bg3);border-radius:20px;padding:3px}
+.metricseg button{border:none;background:transparent;color:var(--text2);font-family:var(--f);font-size:12.5px;font-weight:500;padding:7px 13px;border-radius:16px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.metricseg button.on{background:var(--accent);color:#fff}
+.tool-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-right:2px}
+.spacer{flex:1}
+
+/* matrix */
+.card{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r3);overflow:hidden}
+.matrix-scroll{overflow:auto;max-height:72vh}
+table.matrix{border-collapse:separate;border-spacing:0;font-size:12px;width:100%}
+table.matrix th,table.matrix td{padding:0;text-align:center;white-space:nowrap}
+table.matrix thead th{position:sticky;top:0;z-index:3;background:var(--bg2);color:var(--text2);font-weight:600;font-size:11px;padding:8px 6px;border-bottom:1px solid var(--border-s)}
+table.matrix thead th.corner{left:0;z-index:5;text-align:left;padding-left:16px;min-width:180px}
+table.matrix thead th.totcol{right:0;z-index:4;background:var(--bg3)}
+.dhead{display:flex;flex-direction:column;line-height:1.25}
+.dhead .dow{font-size:9.5px;color:var(--text3);text-transform:uppercase}
+.dhead.we .dnum{color:var(--amber)}
+table.matrix tbody th.agent{position:sticky;left:0;z-index:2;background:var(--bg2);text-align:left;padding:0 16px;font-weight:500;color:var(--text);min-width:180px;max-width:220px;border-bottom:1px solid var(--border);border-right:1px solid var(--border-s)}
+table.matrix tbody td{border-bottom:1px solid rgba(255,255,255,.03);border-right:1px solid rgba(255,255,255,.02)}
+.cell{display:block;height:38px;line-height:1.1;padding:4px 3px;cursor:pointer;position:relative;transition:filter .12s}
+.cell:hover{filter:brightness(1.35)}
+.cell .v{font-weight:600;font-size:12px}
+.cell .c{font-size:9.5px;color:var(--text2);margin-top:1px}
+.cell.clean{color:var(--text3)}
+.cell .exc{position:absolute;top:2px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--blue)}
+td.tot,th.tot{position:sticky;right:0;background:var(--bg3);z-index:1;font-weight:600;border-left:1px solid var(--border-s)}
+tr.totrow th,tr.totrow td{position:sticky;bottom:0;background:var(--bg2);z-index:2;border-top:1px solid var(--border-s);font-weight:600;color:var(--text)}
+tr.totrow th.agent{z-index:6}
+
+/* leaderboard / breakdown */
+table.list{width:100%;border-collapse:collapse;font-size:13px}
+table.list th{text-align:left;color:var(--text2);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:12px 14px;border-bottom:1px solid var(--border-s);position:sticky;top:0;background:var(--bg1)}
+table.list td{padding:11px 14px;border-bottom:1px solid var(--border)}
+table.list tr:hover td{background:var(--glass)}
+.bar{height:6px;border-radius:4px;background:var(--accent);display:inline-block;vertical-align:middle}
+.pill{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px}
+
+/* drill modal */
+.modal{position:fixed;inset:0;background:rgba(4,4,12,.72);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+.modal.open{display:flex}
+.modal-box{background:var(--bg1);border:1px solid var(--border-s);border-radius:var(--r3);width:640px;max-width:96vw;max-height:88vh;overflow:auto;padding:24px}
+.modal-box h3{font-family:var(--fd);font-size:19px;margin-bottom:2px}
+.mclose{float:right;cursor:pointer;color:var(--text2);font-size:20px;line-height:1}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:16px 0}
+.kv .k{font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px}
+.kv .val{font-size:16px;font-weight:600;margin-top:2px}
+.timeline{margin-top:8px}
+.seg{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:var(--r);background:var(--glass);margin-bottom:5px;font-size:12px}
+.seg .dot{width:9px;height:9px;border-radius:3px;flex:none}
+.seg .t{color:var(--text2);font-variant-numeric:tabular-nums}
+.seg .nm{flex:1;font-weight:500}
+.tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;background:var(--red);color:#fff;display:inline-block;margin:2px 3px 0 0}
+.tag.ok{background:var(--green)}
+.tag.info{background:var(--blue)}
+
+/* exceptions form */
+.exform{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:16px;margin-bottom:16px}
+.exform label{font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--text2);margin-top:10px;padding:0 4px}
+.legend .lg{display:flex;align-items:center;gap:6px}
+.legend .sw{width:22px;height:12px;border-radius:3px}
+
+.loading{padding:60px;text-align:center;color:var(--text2);font-size:14px}
+.spin{width:26px;height:26px;border:3px solid var(--border-s);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{padding:40px;text-align:center;color:var(--text3);font-size:13px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg3);border:1px solid var(--border-s);color:var(--text);padding:12px 20px;border-radius:var(--r2);font-size:13px;opacity:0;transition:all .25s;z-index:99;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.view{display:none}.view.active{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="logo">WFM<span>·</span>Adherence</div>
+      <div class="sub" id="subline">Loading…</div>
+    </div>
+    <div class="hbtns">
+      <select id="fromSel"></select><span style="color:var(--text3)">→</span><select id="toSel"></select>
+      <button class="btn" id="csvBtn">Export CSV</button>
+      <button class="btn primary" id="refreshBtn">↻ Refresh</button>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-view="matrix">Matrix</button>
+    <button class="tab" data-view="leaderboard">Leaderboard</button>
+    <button class="tab" data-view="daybreak">Day Breakdown</button>
+    <button class="tab" data-view="exceptions">Exceptions</button>
+  </div>
+
+  <!-- MATRIX -->
+  <div class="view active" id="view-matrix">
+    <div class="toolbar">
+      <span class="tool-label">Metric</span>
+      <div class="metricseg" id="metricSeg">
+        <button data-m="late" class="on">Late</button>
+        <button data-m="break">Break exceed</button>
+        <button data-m="offline">Offline exceed</button>
+        <button data-m="short">Early leave</button>
+        <button data-m="shrink">Shrinkage %</button>
+      </div>
+      <div class="spacer"></div>
+      <input id="agentFilter" placeholder="Filter agents…" style="width:180px"/>
+    </div>
+    <div class="card"><div class="matrix-scroll" id="matrixScroll"><div class="loading"><div class="spin"></div>Reading the sheet…</div></div></div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <!-- LEADERBOARD -->
+  <div class="view" id="view-leaderboard">
+    <div class="card"><div id="leaderWrap" class="empty">—</div></div>
+  </div>
+
+  <!-- DAY BREAKDOWN -->
+  <div class="view" id="view-daybreak">
+    <div class="toolbar"><span class="tool-label">Date</span><select id="dayeSel"></select></div>
+    <div class="card"><div id="dayWrap" class="empty">—</div></div>
+  </div>
+
+  <!-- EXCEPTIONS -->
+  <div class="view" id="view-exceptions">
+    <div class="exform">
+      <div><label>Agent</label><select id="ex_agent" style="width:100%"></select></div>
+      <div><label>Date</label><input id="ex_date" type="date" style="width:100%"/></div>
+      <div><label>Rule</label><select id="ex_rule" style="width:100%">
+        <option value="late">late (excuse lateness)</option>
+        <option value="early_leave">early_leave (credit hours)</option>
+        <option value="wrong_aux">wrong_aux (reclassify)</option>
+        <option value="break">break (excuse break)</option>
+        <option value="offline">offline (excuse offline)</option>
+        <option value="">(blank = suppress all)</option>
+      </select></div>
+      <div><label>Minutes</label><input id="ex_min" type="number" placeholder="optional" style="width:100%"/></div>
+      <div><label>From aux</label><input id="ex_from" placeholder="e.g. Upcoming Offline" style="width:100%"/></div>
+      <div><label>To aux</label><input id="ex_to" placeholder="e.g. Meeting" style="width:100%"/></div>
+      <div style="grid-column:1/-1"><label>Reason</label><input id="ex_reason" placeholder="e.g. transportation delay" style="width:100%"/></div>
+      <div style="grid-column:1/-1"><button class="btn primary" id="ex_save">＋ Add exception</button></div>
+    </div>
+    <div class="card"><div id="excWrap" class="empty">—</div></div>
+  </div>
+</div>
+
+<div class="modal" id="modal"><div class="modal-box" id="modalBox"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+var DATA=null, METRIC='late', gserver=(typeof google!=='undefined'&&google.script&&google.script.run);
+
+/* metric definitions -> how each cell reads */
+var METRICS={
+  late:{label:'Late (min)',get:c=>({v:c.lateMin,c:c.isLate?1:0,bad:c.isLate}),color:v=>heat(v,45),unit:'m'},
+  break:{label:'Break over (min)',get:c=>({v:c.breakOverMin,c:c.breakExceeded?c.breakRules.length:0,bad:c.breakExceeded}),color:(v,c)=>c&&c.breakExceeded?heat(Math.max(v,10),40):'transparent',unit:'m'},
+  offline:{label:'Offline over 20 (min)',get:c=>({v:c.offlineExcess,c:c.offlineExceeded?1:0,bad:c.offlineExceeded}),color:v=>heat(v,40),unit:'m'},
+  short:{label:'Short shift (min)',get:c=>({v:c.shortfallMin,c:c.shortfallMin>0?1:0,bad:c.shortfallMin>0}),color:v=>heat(v,120),unit:'m'},
+  shrink:{label:'Shrinkage %',get:c=>({v:c.buckets.shrinkagePct,c:0,bad:c.buckets.shrinkagePct>25}),color:v=>heat(v,40),unit:'%'}
+};
+
+function heat(v,max){ if(!v||v<=0)return 'transparent'; var t=Math.min(1,v/max); var a=.12+t*.5; return 'rgba(239,68,68,'+a.toFixed(2)+')'; }
+
+/* ---------- boot ---------- */
+function load(){
+  showLoading();
+  if(gserver){ google.script.run.withSuccessHandler(onData).withFailureHandler(onErr).getDashboardData(currentRange()); }
+  else { onErr({message:'Open this as a deployed Apps Script web app (google.script.run unavailable).'}); }
+}
+function currentRange(){ var f=document.getElementById('fromSel').value,t=document.getElementById('toSel').value; return (f&&t)?{from:f,to:t}:{}; }
+function onErr(e){ document.getElementById('matrixScroll').innerHTML='<div class="empty">⚠ '+(e&&e.message||e)+'</div>'; }
+function showLoading(){ document.getElementById('matrixScroll').innerHTML='<div class="loading"><div class="spin"></div>Reading the sheet…</div>'; }
+
+function onData(d){
+  DATA=d;
+  document.getElementById('subline').textContent=
+    d.agents.length+' agents · '+d.dates.length+' days · shrinkage: '+d.config.shrinkageMode+
+    ' · updated '+new Date(d.generatedAt).toLocaleTimeString();
+  fillRangeSelectors(d.dates);
+  fillDaySelector(d.dates);
+  fillAgentSelector(d.agents);
+  renderMatrix(); renderLegend(); renderLeaderboard(); renderDay(); renderExceptions();
+}
+
+/* ---------- selectors ---------- */
+function fillRangeSelectors(dates){
+  var f=document.getElementById('fromSel'),t=document.getElementById('toSel');
+  if(f.dataset.filled)return;
+  dates.forEach(function(dt){ f.add(new Option(dt,dt)); t.add(new Option(dt,dt)); });
+  if(dates.length){ f.value=dates[0]; t.value=dates[dates.length-1]; f.dataset.filled='1'; }
+  f.onchange=t.onchange=load;
+}
+function fillDaySelector(dates){ var s=document.getElementById('dayeSel'); s.innerHTML=''; dates.forEach(function(dt){s.add(new Option(dt,dt));}); if(dates.length)s.value=dates[dates.length-1]; s.onchange=renderDay; }
+function fillAgentSelector(agents){ var s=document.getElementById('ex_agent'); s.innerHTML=''; agents.forEach(function(a){s.add(new Option(a.name+' (#'+a.id+')',a.id));}); }
+
+/* ---------- matrix ---------- */
+function renderMatrix(){
+  var d=DATA,mdef=METRICS[METRIC],filt=(document.getElementById('agentFilter').value||'').toLowerCase();
+  var agents=d.agents.filter(function(a){return !filt||a.name.toLowerCase().indexOf(filt)>=0;});
+  if(!agents.length||!d.dates.length){document.getElementById('matrixScroll').innerHTML='<div class="empty">No data for this range.</div>';return;}
+  var h='<table class="matrix"><thead><tr><th class="corner">Agent</th>';
+  d.dates.forEach(function(dt){var o=dow(dt);h+='<th class="'+(o.we?'we':'')+'"><div class="dhead '+(o.we?'we':'')+'"><span class="dow">'+o.dw+'</span><span class="dnum">'+o.dn+'</span></div></th>';});
+  h+='<th class="totcol tot">Σ</th></tr></thead><tbody>';
+  agents.forEach(function(a){
+    h+='<tr><th class="agent" title="'+a.name+'">'+a.name+'</th>';
+    var rowTot=0,rowCnt=0;
+    d.dates.forEach(function(dt){
+      var c=d.cells[a.id]&&d.cells[a.id][dt];
+      if(!c){h+='<td><span class="cell clean">·</span></td>';return;}
+      var g=mdef.get(c); rowTot+=g.v||0; rowCnt+=g.c||0;
+      var bg=mdef.color(g.v,c);
+      var val=g.v?(g.v+(mdef.unit==='%'?'%':'')):'';
+      var cnt=(METRIC!=='shrink'&&g.c)?'<span class="c">×'+g.c+'</span>':'';
+      var exc=(c.appliedExceptions&&c.appliedExceptions.length)?'<span class="exc" title="exception applied"></span>':'';
+      h+='<td style="background:'+bg+'"><span class="cell'+(g.v?'':' clean')+'" onclick="drill(\''+a.id+'\',\''+dt+'\')"><span class="v">'+(val||'·')+'</span>'+cnt+exc+'</span></td>';
+    });
+    var rowShow=(METRIC==='shrink')?(d.dates.length?Math.round(rowTot/d.dates.length*10)/10:0):rowTot;
+    h+='<td class="tot"><span class="cell"><span class="v">'+fmtRowTot(rowShow)+'</span>'+(rowCnt?'<span class="c">×'+rowCnt+'</span>':'')+'</span></td></tr>';
+  });
+  // totals row
+  h+='<tr class="totrow"><th class="agent">Daily total</th>';
+  d.dates.forEach(function(dt){
+    var sum=0,cnt=0;
+    agents.forEach(function(a){var c=d.cells[a.id]&&d.cells[a.id][dt];if(c){var g=METRICS[METRIC].get(c);sum+=g.v||0;cnt+=g.c||0;}});
+    h+='<td><span class="cell"><span class="v">'+fmtRowTot(sum)+'</span>'+(cnt?'<span class="c">×'+cnt+'</span>':'')+'</span></td>';
+  });
+  h+='<td class="tot"></td></tr></tbody></table>';
+  document.getElementById('matrixScroll').innerHTML=h;
+}
+function fmtRowTot(v){ if(!v)return '·'; return METRIC==='shrink'?(Math.round(v*10)/10+''):Math.round(v)+''; }
+function dow(ymd){var p=ymd.split('-');var dt=new Date(p[0],p[1]-1,p[2]);var w=dt.getDay();return{dw:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][w],dn:parseInt(p[2],10),we:(w===5||w===6)};}
+
+function renderLegend(){
+  var m=METRICS[METRIC];
+  document.getElementById('legend').innerHTML=
+    '<div class="lg"><b style="color:var(--text)">'+m.label+'</b></div>'+
+    '<div class="lg"><span class="sw" style="background:transparent;border:1px solid var(--border-s)"></span>clean</div>'+
+    '<div class="lg"><span class="sw" style="background:rgba(239,68,68,.25)"></span>low</div>'+
+    '<div class="lg"><span class="sw" style="background:rgba(239,68,68,.62)"></span>high</div>'+
+    '<div class="lg"><span class="exc" style="position:static"></span> exception applied</div>'+
+    '<div class="lg">×N = times violated that day</div>';
+}
+
+/* ---------- drill modal ---------- */
+function drill(aid,dt){
+  var c=DATA.cells[aid]&&DATA.cells[aid][dt]; if(!c)return;
+  var a=DATA.agents.filter(function(x){return x.id==aid;})[0]||{name:aid};
+  var tags='';
+  if(c.isLate)tags+='<span class="tag">Late '+c.lateMin+'m</span>';
+  if(c.breakExceeded)c.breakRules.forEach(function(r){tags+='<span class="tag">break: '+r+'</span>';});
+  if(c.offlineExceeded)tags+='<span class="tag">offline +'+c.offlineExcess+'m</span>';
+  if(c.shortfallMin>0)tags+='<span class="tag">short '+c.shortfallMin+'m</span>';
+  if(!tags)tags='<span class="tag ok">no violations</span>';
+  var exApplied='';
+  (c.appliedExceptions||[]).forEach(function(e){exApplied+='<span class="tag info">✓ '+e.rule+(e.reason?': '+e.reason:'')+'</span>';});
+  var segs=c.statuses.map(function(s){return '<div class="seg"><span class="dot" style="background:'+statusColor(s.status)+'"></span><span class="t">'+tm(s.start)+'–'+(s.end?tm(s.end):'…')+'</span><span class="nm">'+s.status+'</span><span class="t">'+s.min+'m</span></div>';}).join('');
+  document.getElementById('modalBox').innerHTML=
+    '<span class="mclose" onclick="closeModal()">×</span>'+
+    '<h3>'+a.name+'</h3><div class="sub">'+dt+' · scheduled '+tm(c.scheduledStart)+' · login '+tm(c.login)+(c.offScheduled?' · <span style="color:var(--amber)">rostered OFF</span>':'')+'</div>'+
+    '<div style="margin-top:10px">'+tags+' '+exApplied+'</div>'+
+    '<div class="kv">'+
+      kv('Worked',Math.floor(c.workedMin/60)+'h '+(c.workedMin%60)+'m')+
+      kv('Break total',c.totalBreak+'m / '+c.breakSegments+' seg')+
+      kv('Offline',c.totalOffline+'m')+
+      kv('Shrinkage',c.buckets.shrinkagePct+'%')+
+      kv('Productive',c.buckets.productive+'m')+
+      kv('Non-productive',c.buckets.nonProductive+'m')+
+    '</div>'+
+    '<div class="tool-label">Status timeline</div><div class="timeline">'+(segs||'<div class="empty">no statuses</div>')+'</div>';
+  document.getElementById('modal').classList.add('open');
+}
+function kv(k,v){return '<div><div class="k">'+k+'</div><div class="val">'+v+'</div></div>';}
+function closeModal(){document.getElementById('modal').classList.remove('open');}
+function tm(iso){if(!iso)return '';var p=iso.split('T');return p[1]?p[1].slice(0,5):p[0];}
+function statusColor(s){s=s.toLowerCase();if(s.indexOf('available')>=0&&s.indexOf('un')<0)return 'var(--green)';if(s.indexOf('break')>=0)return 'var(--amber)';if(s.indexOf('offline')>=0)return 'var(--red)';if(s.indexOf('unavailable')>=0)return 'var(--text3)';if(s.indexOf('personal')>=0)return '#a855f7';return 'var(--blue)';}
+
+/* ---------- leaderboard ---------- */
+function renderLeaderboard(){
+  var d=DATA,rows=[];
+  d.agents.forEach(function(a){
+    var t=d.totals.perAgent[a.id]; if(!t)return;
+    var total=t.lateCnt+t.breakCnt+t.offlineCnt+(t.shortMin>0?1:0);
+    rows.push({name:a.name,shifts:t.shifts,late:t.lateCnt,lateMin:Math.round(t.lateMin),brk:t.breakCnt,brkMin:Math.round(t.breakMin),off:t.offlineCnt,offMin:Math.round(t.offlineMin),shrink:t.shifts?Math.round(t.shrinkSum/t.shifts*10)/10:0,total:t.lateCnt+t.breakCnt+t.offlineCnt});
+  });
+  rows.sort(function(a,b){return b.total-a.total;});
+  var max=Math.max(1,rows[0]?rows[0].total:1);
+  var h='<table class="list"><thead><tr><th>Agent</th><th>Shifts</th><th>Late (×/min)</th><th>Break (×/min)</th><th>Offline (×/min)</th><th>Avg shrink</th><th>Total viol.</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    h+='<tr><td><b>'+r.name+'</b></td><td>'+r.shifts+'</td><td>'+r.late+' / '+r.lateMin+'m</td><td>'+r.brk+' / '+r.brkMin+'m</td><td>'+r.off+' / '+r.offMin+'m</td><td>'+r.shrink+'%</td><td><span class="bar" style="width:'+(r.total/max*90+8)+'px"></span> '+r.total+'</td></tr>';
+  });
+  h+='</tbody></table>';
+  document.getElementById('leaderWrap').innerHTML=rows.length?h:'<div class="empty">No violations.</div>';
+  document.getElementById('leaderWrap').className='';
+}
+
+/* ---------- day breakdown ---------- */
+function renderDay(){
+  if(!DATA)return;
+  var dt=document.getElementById('dayeSel').value,d=DATA,groups={Late:[],Break:[],Offline:[],'Early leave':[]};
+  d.agents.forEach(function(a){
+    var c=d.cells[a.id]&&d.cells[a.id][dt]; if(!c)return;
+    if(c.isLate)groups.Late.push(a.name+' — '+c.lateMin+'m');
+    if(c.breakExceeded)groups.Break.push(a.name+' — '+c.breakRules.join(', ')+(c.breakOverMin?' ('+c.breakOverMin+'m over)':''));
+    if(c.offlineExceeded)groups.Offline.push(a.name+' — +'+c.offlineExcess+'m');
+    if(c.shortfallMin>0)groups['Early leave'].push(a.name+' — '+c.shortfallMin+'m short');
+  });
+  var h='';
+  Object.keys(groups).forEach(function(g){
+    h+='<div style="padding:14px 16px;border-bottom:1px solid var(--border)"><div class="tool-label" style="margin-bottom:6px">'+g+' <span class="pill" style="background:var(--glass);color:var(--text2)">'+groups[g].length+'</span></div>'+
+      (groups[g].length?groups[g].map(function(x){return '<div style="font-size:13px;padding:3px 0">• '+x+'</div>';}).join(''):'<div style="color:var(--text3);font-size:12px">none</div>')+'</div>';
+  });
+  document.getElementById('dayWrap').innerHTML=h; document.getElementById('dayWrap').className='';
+}
+
+/* ---------- exceptions ---------- */
+function renderExceptions(){
+  if(!gserver){document.getElementById('excWrap').innerHTML='<div class="empty">Deploy as web app to manage exceptions.</div>';return;}
+  google.script.run.withSuccessHandler(function(rows){
+    var h='<table class="list"><thead><tr><th>#</th><th>Agent</th><th>Date</th><th>Rule</th><th>Min</th><th>From→To</th><th>Reason</th><th></th></tr></thead><tbody>';
+    rows.forEach(function(r,i){
+      h+='<tr><td>'+(i+2)+'</td><td>'+(r.agent_name||r.agent_id||'')+'</td><td>'+fmtCell(r.date)+'</td><td>'+(r.rule||'<i>all</i>')+'</td><td>'+(r.minutes||'')+'</td><td>'+(r.from_aux||'')+(r.to_aux?' → '+r.to_aux:'')+'</td><td>'+(r.reason||'')+'</td><td><button class="btn" onclick="delEx('+(i+2)+')">✕</button></td></tr>';
+    });
+    h+='</tbody></table>';
+    document.getElementById('excWrap').innerHTML=rows.length?h:'<div class="empty">No exceptions yet.</div>';
+    document.getElementById('excWrap').className='';
+  }).listExceptions();
+}
+function fmtCell(v){ if(!v)return ''; try{var d=new Date(v);if(!isNaN(d))return d.toISOString().slice(0,10);}catch(e){} return String(v).slice(0,10); }
+function saveEx(){
+  var id=document.getElementById('ex_agent').value;
+  var a=DATA.agents.filter(function(x){return x.id==id;})[0]||{};
+  var row={agent_id:id,agent_name:a.name,date:document.getElementById('ex_date').value,rule:document.getElementById('ex_rule').value,minutes:document.getElementById('ex_min').value,from_aux:document.getElementById('ex_from').value,to_aux:document.getElementById('ex_to').value,reason:document.getElementById('ex_reason').value};
+  if(!row.date){toast('Pick a date');return;}
+  toast('Saving…');
+  google.script.run.withSuccessHandler(function(d){onData(d);toast('Exception added ✓');document.getElementById('ex_reason').value='';}).withFailureHandler(onErr).saveException(row);
+}
+function delEx(i){ google.script.run.withSuccessHandler(function(d){onData(d);toast('Removed');}).deleteException(i); }
+
+/* ---------- csv ---------- */
+function exportCSV(){
+  var d=DATA,m=METRICS[METRIC],lines=[['Agent'].concat(d.dates).concat(['Total'])];
+  d.agents.forEach(function(a){var row=[a.name],tot=0;d.dates.forEach(function(dt){var c=d.cells[a.id]&&d.cells[a.id][dt];var v=c?m.get(c).v:'';if(v)tot+=v;row.push(v);});row.push(Math.round(tot*10)/10);lines.push(row);});
+  var csv=lines.map(function(r){return r.map(function(x){return '"'+String(x==null?'':x).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+  var b=new Blob([csv],{type:'text/csv'}),u=URL.createObjectURL(b),a=document.createElement('a');
+  a.href=u;a.download='wfm_'+METRIC+'.csv';a.click();URL.revokeObjectURL(u);
+}
+
+/* ---------- ui wiring ---------- */
+function toast(t){var e=document.getElementById('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(function(){e.classList.remove('show');},2200);}
+document.getElementById('metricSeg').addEventListener('click',function(e){if(e.target.dataset.m){METRIC=e.target.dataset.m;[].forEach.call(this.children,function(b){b.classList.toggle('on',b.dataset.m===METRIC);});renderMatrix();renderLegend();}});
+document.querySelectorAll('.tab').forEach(function(t){t.onclick=function(){document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active');});t.classList.add('active');document.querySelectorAll('.view').forEach(function(v){v.classList.remove('active');});document.getElementById('view-'+t.dataset.view).classList.add('active');};});
+document.getElementById('agentFilter').addEventListener('input',renderMatrix);
+document.getElementById('refreshBtn').onclick=load;
+document.getElementById('csvBtn').onclick=exportCSV;
+document.getElementById('ex_save').onclick=saveEx;
+document.getElementById('modal').addEventListener('click',function(e){if(e.target===this)closeModal();});
+load();
+</script>
+</body>
+</html>
