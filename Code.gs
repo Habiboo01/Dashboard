@@ -559,10 +559,22 @@ function applyExceptions_(shift, exceptions, auxBuckets) {
   var recomputed = computeBuckets_(mapFromRounded_(shift.auxMin), auxBuckets,
                                    shift.totalBreak, shift.totalOffline);
   shift.buckets = recomputed;
+
+  // Recompute lost minutes so exceptions reflect in the compensation number.
+  // wrong_aux already changed covered time via auxMin; late/early/break/offline
+  // exceptions credit their minutes back so they no longer count as lost.
+  if (!shift.offScheduled) {
+    var expectedOnQueue = CONFIG.SHIFT_MINUTES - CONFIG.BREAK_TARGET_MIN - CONFIG.OFFLINE_CAP_MIN;
+    var covered = (shift.buckets.productive || 0) + (shift.buckets.shrinkageAux || 0);
+    shift.lostMin = round1_(Math.max(0, expectedOnQueue - covered - (shift.lostCreditMin || 0)));
+  }
 }
+
+function addCredit_(shift, min) { shift.lostCreditMin = round1_((shift.lostCreditMin || 0) + (min || 0)); }
 
 function suppressLate_(shift, e) {
   if (shift.lateMin > 0 || shift.isLate) {
+    addCredit_(shift, shift.lateMin);
     shift.appliedExceptions.push({ rule: 'late', reason: e.reason, removedMin: shift.lateMin });
   }
   shift.lateMin = 0; shift.isLate = false;
@@ -571,15 +583,19 @@ function suppressLate_(shift, e) {
 function suppressShort_(shift, e) {
   var credit = e.minutes != null ? e.minutes : shift.shortfallMin;
   var before = shift.shortfallMin;
+  var applied = Math.min(credit, before);
   shift.shortfallMin = Math.max(0, shift.shortfallMin - credit);
-  shift.workedMin = shift.workedMin + Math.min(credit, before);
-  if (before > 0) shift.appliedExceptions.push({ rule: 'early_leave', reason: e.reason, creditedMin: Math.min(credit, before) });
+  shift.workedMin = shift.workedMin + applied;
+  // Early-leave excused with explicit minutes credits that amount; otherwise the shortfall.
+  addCredit_(shift, e.minutes != null ? e.minutes : before);
+  if (before > 0 || e.minutes != null) shift.appliedExceptions.push({ rule: 'early_leave', reason: e.reason, creditedMin: (e.minutes != null ? e.minutes : applied) });
 }
 
 function suppressBreak_(shift, e) {
   if (shift.breakExceeded) {
     shift.appliedExceptions.push({ rule: 'break', reason: e.reason, clearedRules: shift.breakRules.slice() });
   }
+  addCredit_(shift, shift.buckets.breakExcess);   // break over the allowance no longer counts as lost
   shift.breakExceeded = false; shift.breakRules = []; shift.breakOverMin = 0;
 }
 
@@ -587,6 +603,7 @@ function suppressOffline_(shift, e) {
   if (shift.offlineExceeded) {
     shift.appliedExceptions.push({ rule: 'offline', reason: e.reason, clearedMin: shift.offlineExcess });
   }
+  addCredit_(shift, shift.offlineExcess);         // offline over the cap no longer counts as lost
   shift.offlineExceeded = false; shift.offlineExcess = 0;
 }
 
@@ -695,7 +712,20 @@ function deleteException(index1Based) {
 }
 
 function listExceptions() {
-  return readSheetObjects_('Exceptions').rows;
+  var sh = ss_().getSheetByName('Exceptions');
+  if (!sh) return [];
+  var values = sh.getDataRange().getValues();
+  if (values.length < 2) return [];
+  var headers = values[0].map(function (h) { return String(h).trim(); });
+  var out = [];
+  for (var r = 1; r < values.length; r++) {
+    var row = values[r];
+    if (row.every(function (c) { return c === '' || c === null; })) continue;
+    var o = { _row: r + 1 };                 // true 1-based sheet row for deletion
+    for (var c = 0; c < headers.length; c++) o[headers[c]] = row[c];
+    out.push(o);
+  }
+  return out;
 }
 
 /* ========================= AGGREGATION ========================= */

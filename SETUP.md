@@ -111,6 +111,11 @@ no separate line for unavailable. Clamped at 0 (never negative) and **0 on overt
 The cell drill shows the calculation; the **MTD** tab leads with **Total lost (to compensate)** per agent
 (sorted worst-first) and exports to CSV — that's the number of minutes each agent should make up.
 
+**Exceptions reduce lost.** Any exception credits its minutes back: `late` removes the late minutes,
+`early_leave` credits the shortfall, `break`/`offline` credit the over-allowance minutes, and `wrong_aux`
+reclassifies time into covered work — so lost drops accordingly. The drill shows the exception credit line.
+Delete an exception anytime from the **Exceptions** tab (✕ Delete) and the numbers recompute.
+
 ## Metrics in the matrix toggle
 Late (min) · Break over (min) · Offline over 20 (min) · Early leave / short shift (min) · Overtime (min) · **Lost / compensate (min)** · Shrinkage %.
 Cells show minutes and a `×N` violation count, color-scaled by severity; a blue dot marks an applied

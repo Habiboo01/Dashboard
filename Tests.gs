@@ -80,6 +80,29 @@ function runTests() {
   check('C6 late 20', m6.lateMin === 20, 'got ' + m6.lateMin);
   check('C6 lost = 460 - available(380) = 80', Math.abs(m6.lostMin - 80) <= 1, 'got ' + m6.lostMin);
 
+  // --- Case 7: exceptions reduce the lost duration ---
+  var s7 = mkShift_([
+    st_('Available', day + 'T09:20:00', day + 'T12:00:00'),
+    st_('Break', day + 'T12:00:00', day + 'T12:40:00'),
+    st_('Personal Time', day + 'T12:40:00', day + 'T13:00:00'),
+    st_('Available', day + 'T13:00:00', day + 'T16:40:00')
+  ]);
+  var m7 = scoreShift_(s7, agent, { '2026-06-01': { startHour: 9, off: false } }, auxBuckets);
+  check('C7 lost 80 before exception', Math.abs(m7.lostMin - 80) <= 1, 'got ' + m7.lostMin);
+  applyExceptions_(m7, [{ agentId: '18', date: '2026-06-01', rule: 'late', reason: 'transport' }], auxBuckets);
+  check('C7 late exception credits 20 -> lost 60', Math.abs(m7.lostMin - 60) <= 1, 'got ' + m7.lostMin);
+
+  // wrong_aux: move 20m Personal Time -> Meeting (covered) reduces lost by 20.
+  var s8 = mkShift_([
+    st_('Available', day + 'T09:00:00', day + 'T12:00:00'),      // 180m
+    st_('Personal Time', day + 'T12:00:00', day + 'T12:20:00'),  // 20m
+    st_('Available', day + 'T12:20:00', day + 'T16:00:00')       // 220m -> available 400, lost 60
+  ]);
+  var m8 = scoreShift_(s8, agent, { '2026-06-01': { startHour: 9, off: false } }, auxBuckets);
+  var lostBefore = m8.lostMin;
+  applyExceptions_(m8, [{ agentId: '18', date: '2026-06-01', rule: 'wrong_aux', minutes: 20, fromAux: 'Personal Time', toAux: 'Meeting', reason: 'was a meeting' }], auxBuckets);
+  check('C8 wrong_aux reduces lost by ~20', Math.abs((lostBefore - m8.lostMin) - 20) <= 1, 'before ' + lostBefore + ' after ' + m8.lostMin);
+
   Logger.log(results.join('\n'));
   return results;
 }

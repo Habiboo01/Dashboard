@@ -454,6 +454,7 @@ function drill(aid,dt){
     '<div class="tool-label">Lost / to compensate</div><div style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.7">'+
       'Expected on-queue = '+DATA.config.shiftMinutes+'m − '+DATA.config.breakTarget+'m break − '+DATA.config.offlineCap+'m offline = <b>'+(DATA.config.shiftMinutes-DATA.config.breakTarget-DATA.config.offlineCap)+'m</b><br>'+
       '− Available '+c.buckets.productive+'m − productive aux (Calls/Meeting/Jira/Email) '+c.buckets.shrinkageAux+'m<br>'+
+      ((c.lostCreditMin>0)?'− exception credit '+c.lostCreditMin+'m<br>':'')+
       '= <b style="color:var(--amber)">'+(c.lostMin||0)+'m lost</b>'+(c.isOvertime?' &nbsp;(overtime day — not counted)':'')+
       '</div>'+
     '<div class="tool-label">Status timeline</div><div class="timeline">'+(segs||'<div class="empty">no statuses</div>')+'</div>';
@@ -553,7 +554,7 @@ function renderExceptions(){
   google.script.run.withSuccessHandler(function(rows){
     var h='<table class="list"><thead><tr><th>#</th><th>Agent</th><th>Date</th><th>Rule</th><th>Min</th><th>From→To</th><th>Reason</th><th></th></tr></thead><tbody>';
     rows.forEach(function(r,i){
-      h+='<tr><td>'+(i+2)+'</td><td>'+(r.agent_name||r.agent_id||'')+'</td><td>'+fmtCell(r.date)+'</td><td>'+(r.rule||'<i>all</i>')+'</td><td>'+(r.minutes||'')+'</td><td>'+(r.from_aux||'')+(r.to_aux?' → '+r.to_aux:'')+'</td><td>'+(r.reason||'')+'</td><td><button class="btn" onclick="delEx('+(i+2)+')">✕</button></td></tr>';
+      h+='<tr><td>'+(i+1)+'</td><td>'+(r.agent_name||r.agent_id||'')+'</td><td>'+fmtCell(r.date)+'</td><td>'+(r.rule||'<i>all</i>')+'</td><td>'+(r.minutes||'')+'</td><td>'+(r.from_aux||'')+(r.to_aux?' → '+r.to_aux:'')+'</td><td>'+(r.reason||'')+'</td><td><button class="btn" onclick="delEx('+r._row+')">✕ Delete</button></td></tr>';
     });
     h+='</tbody></table>';
     document.getElementById('excWrap').innerHTML=rows.length?h:'<div class="empty">No exceptions yet.</div>';
@@ -569,7 +570,7 @@ function saveEx(){
   toast('Saving…');
   google.script.run.withSuccessHandler(function(d){onData(d);toast('Exception added ✓');document.getElementById('ex_reason').value='';}).withFailureHandler(onErr).saveException(row);
 }
-function delEx(i){ google.script.run.withSuccessHandler(function(d){onData(d);toast('Removed');}).deleteException(i); }
+function delEx(rowNum){ if(!confirm('Delete this exception?'))return; toast('Deleting…'); google.script.run.withSuccessHandler(function(d){onData(d);toast('Exception deleted ✓');}).withFailureHandler(onErr).deleteException(rowNum); }
 
 /* ---------- MTD (month totals) ---------- */
 function monthsList(){ var set={}; (DATA?DATA.dates:[]).forEach(function(dt){set[dt.slice(0,7)]=1;}); return Object.keys(set).sort(); }
