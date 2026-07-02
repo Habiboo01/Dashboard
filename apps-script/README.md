@@ -19,6 +19,7 @@ The only credential is a Notion token, used solely to keep the KB in sync.
 | `Code.gs` | Routing (`doGet`), the `search()` API, admin gating, logging, keyword overrides |
 | `Search.gs` | Deterministic ranking/scoring (title > keywords > category > content; EN + AR) |
 | `Sync.gs` | Pulls KB content from Notion into a Drive JSON snapshot; daily trigger |
+| `Gemini.gs` | Optional free AI (Google Gemini): understands the case + drafts EN / Egyptian-Arabic reply |
 | `Kb.gs` | Built-in KB seed (96 topics) — fallback before/without a Notion sync |
 | `Agent.html` | Agent search page (default view) |
 | `Admin.html` | Admin panel — sync + keyword editor + logs (`?view=admin`) |
@@ -64,6 +65,23 @@ The only credential is a Notion token, used solely to keep the KB in sync.
   **Enable daily auto-sync**.
 
 ---
+
+## Optional: turn on the free AI mind (Gemini)
+
+Off by default — the bot works as pure search without it. Turning it on lets agents get an
+AI-written "what to do" plus a ready customer reply in **English and Egyptian Arabic**, grounded
+in the KB topics the search finds (so it won't invent procedures).
+
+1. Get a **free** API key at https://aistudio.google.com → **Get API key**. No billing needed.
+2. Add a Script Property **`GEMINI_KEY`** = that key.
+3. Open the Admin panel (`?view=admin`) → **AI mind (Gemini)** → **Turn AI ON**.
+
+Free-tier notes:
+- Limits are roughly ~15 requests/min and ~1,000–1,500/day (Google changes these); if you hit the
+  cap, the bot automatically falls back to plain search until the window resets.
+- On the free tier, Google may use submitted data to improve their products, so **don't paste
+  customer PII** (names, National IDs, card numbers) — describe the case instead. The Agent page
+  shows this reminder. Flip the toggle OFF anytime to disable AI instantly.
 
 ## Using it
 - **Agents:** share the plain **/exec** URL.

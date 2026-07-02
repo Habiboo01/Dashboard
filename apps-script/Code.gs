@@ -55,6 +55,20 @@ function requireAdmin_() {
   if (!isAdmin_()) throw new Error('Not authorized (admin only).');
 }
 
+// ---------- Settings (AI toggle, etc.) ----------
+
+function getSettings_() {
+  var raw = PropertiesService.getScriptProperties().getProperty('SETTINGS');
+  var s = {};
+  if (raw) { try { s = JSON.parse(raw); } catch (e) {} }
+  if (typeof s.aiEnabled === 'undefined') s.aiEnabled = false;
+  return s;
+}
+
+function saveSettings_(s) {
+  PropertiesService.getScriptProperties().setProperty('SETTINGS', JSON.stringify(s));
+}
+
 // ---------- KB loading ----------
 
 /** Load the KB: Drive snapshot if synced, otherwise the in-script seed. */
@@ -112,6 +126,38 @@ function search(query) {
     };
   });
   return { query: query, count: clean.length, results: clean };
+}
+
+/**
+ * ask() — the endpoint the Agent UI calls. Always runs the keyword search; if the admin
+ * has enabled AI (and a GEMINI_KEY is set), also asks Gemini using ONLY the top matches
+ * as grounding. Returns:
+ *   { query, mode:'search'|'ai', count, results:[...], ai?:{covered,internal,reply_en,reply_ar,sources}, aiError? }
+ * Falls back cleanly to search results if AI is off or errors out.
+ */
+function ask(query) {
+  query = (query || '').toString();
+  var kb = getKb();
+  var ranked = rankKb_(kb, query, 5);
+  var results = ranked.map(function (r) {
+    return { category: r.category, title: r.title, content: r.content,
+             notionUrl: r.notionUrl, matchedTerms: r.matchedTerms };
+  });
+  var payload = { query: query, mode: 'search', count: results.length, results: results };
+
+  var settings = getSettings_();
+  var aiOn = settings.aiEnabled && geminiConfigured_(); // geminiConfigured_ in Gemini.gs
+  if (aiOn && results.length) {
+    try {
+      payload.ai = geminiAnswer_(query, results); // Gemini.gs
+      payload.mode = 'ai';
+    } catch (err) {
+      payload.aiError = String(err.message || err); // UI shows a note + the search results
+    }
+  }
+
+  try { logSearch_(query, ranked); } catch (e) {}
+  return payload;
 }
 
 // ---------- Data spreadsheet (logs + keyword overrides) ----------
@@ -185,9 +231,20 @@ function getAdminStatus() {
     source: props.getProperty('KB_FILE_ID') ? 'Notion sync' : 'built-in seed',
     lastSync: props.getProperty('LAST_SYNC') || 'never',
     notionConfigured: !!(props.getProperty('NOTION_TOKEN') && props.getProperty('NOTION_PARENT_ID')),
+    aiEnabled: getSettings_().aiEnabled,
+    geminiConfigured: geminiConfigured_(),
     dataSheetUrl: ss.getUrl(),
     titles: kb.map(function (e) { return e.title; }).sort()
   };
+}
+
+/** Turn the AI (Gemini) answering mode on/off. Admin only. */
+function setAiEnabled(on) {
+  requireAdmin_();
+  var s = getSettings_();
+  s.aiEnabled = !!on;
+  saveSettings_(s);
+  return { aiEnabled: s.aiEnabled };
 }
 
 /** List current keyword overrides for the admin editor. */

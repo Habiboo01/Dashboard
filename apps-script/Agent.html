@@ -9,7 +9,7 @@
     --border:rgba(255,255,255,.09);--border-s:rgba(255,255,255,.14);
     --text:#eeeef8;--text2:#8080a0;--text3:#55557a;
     --accent:#7c5af0;--accent2:#9b7ff8;--accent-g:rgba(124,90,240,.14);
-    --green:#22c55e;--amber:#f59e0b;
+    --green:#22c55e;--green-g:rgba(34,197,94,.12);--amber:#f59e0b;
     --r:10px;--r2:14px;
   }
   *{margin:0;padding:0;box-sizing:border-box}
@@ -30,6 +30,7 @@
   .btn:disabled{opacity:.5;cursor:default}
   .hint{color:var(--text3);font-size:12px;margin:2px 2px 16px}
   .msg{color:var(--text2);text-align:center;padding:40px 10px;font-size:14px}
+  .banner{background:var(--amber);color:#241a00;font-size:12.5px;padding:8px 12px;border-radius:8px;margin-bottom:14px}
   .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);margin-bottom:14px;overflow:hidden}
   .card-h{display:flex;align-items:center;gap:10px;padding:14px 16px;cursor:pointer}
   .card-h:hover{background:var(--bg3)}
@@ -52,6 +53,19 @@
         padding:8px 12px;font-size:12.5px;cursor:pointer;text-decoration:none;display:inline-block}
   .mini:hover{border-color:var(--accent)}
   mark{background:rgba(245,158,11,.28);color:#ffe9c2;border-radius:3px;padding:0 2px}
+  /* AI answer cards */
+  .ai-card{background:var(--bg2);border:1px solid var(--border-s);border-radius:var(--r2);margin-bottom:12px;padding:16px}
+  .ai-card .lbl{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--text2);margin-bottom:8px}
+  .ai-card.reply{border-color:rgba(34,197,94,.35)}
+  .ai-card .lbl .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+  .ai-card.reply .lbl .dot{background:var(--green)}
+  .reply-text{font-size:14px;line-height:1.7;white-space:pre-wrap;color:#eaeaf6}
+  .reply-text.ar{direction:rtl;text-align:right;font-size:15px}
+  .copy{float:right;background:var(--bg3);border:1px solid var(--border-s);color:var(--text);border-radius:8px;
+        padding:5px 11px;font-size:12px;cursor:pointer}
+  .copy:hover{border-color:var(--green)}
+  .badge{font-size:10px;font-weight:700;color:#fff;background:var(--accent);padding:2px 8px;border-radius:20px;letter-spacing:.3px}
+  .refs-h{color:var(--text3);font-size:12px;margin:18px 2px 8px;text-transform:uppercase;letter-spacing:.4px}
   .spin{width:18px;height:18px;border:2px solid var(--border-s);border-top-color:var(--accent);
         border-radius:50%;animation:sp .7s linear infinite;display:inline-block;vertical-align:middle}
   @keyframes sp{to{transform:rotate(360deg)}}
@@ -60,13 +74,13 @@
 <body>
 <div class="wrap">
   <div class="head"><div class="logo">telda<span>~</span> Support</div></div>
-  <div class="sub">Describe the customer's case — English or العربية — to find the right procedure.</div>
+  <div class="sub">Describe the customer's case — English or العربية. Tip: describe the case, don't paste the customer's ID/card numbers.</div>
 
   <div class="searchbar">
     <input id="q" dir="auto" autocomplete="off" placeholder="e.g. money didn't show up after BDC ATM deposit"/>
     <button class="btn" id="go" onclick="run()">Search</button>
   </div>
-  <div class="hint">Tip: search by symptoms (what the customer said), not just topic names.</div>
+  <div class="hint">Searches by symptoms (what the customer said), not just topic names.</div>
 
   <div id="out"></div>
 </div>
@@ -75,7 +89,6 @@
   var q = document.getElementById('q');
   var out = document.getElementById('out');
   var go = document.getElementById('go');
-  var lastTerms = [];
 
   q.addEventListener('keydown', function(e){ if(e.key==='Enter') run(); });
   q.focus();
@@ -84,29 +97,85 @@
     var query = q.value.trim();
     if(!query){ q.focus(); return; }
     go.disabled = true;
-    out.innerHTML = '<div class="msg"><span class="spin"></span></div>';
+    out.innerHTML = '<div class="msg"><span class="spin"></span> Looking it up…</div>';
     google.script.run
       .withSuccessHandler(render)
       .withFailureHandler(function(err){
         go.disabled=false;
         out.innerHTML = '<div class="msg">Something went wrong: '+esc(err.message||err)+'</div>';
       })
-      .search(query);
+      .ask(query);
   }
 
   function render(res){
     go.disabled = false;
-    lastTerms = (res.results[0] && res.results[0].matchedTerms) || [];
-    if(!res.count){
-      out.innerHTML = '<div class="msg">No matching procedure found for <b>'+esc(res.query)+'</b>.<br>'+
-        'Try different words, or ask an admin to add this case to the knowledge base.</div>';
-      return;
-    }
     var html = '';
-    res.results.forEach(function(r, i){
+    if(res.aiError){
+      html += '<div class="banner">AI is unavailable right now ('+esc(res.aiError)+'). Showing search results.</div>';
+    }
+    if(res.mode === 'ai' && res.ai){
+      html += renderAI(res);
+    } else {
+      html += renderSearch(res);
+    }
+    out.innerHTML = html;
+  }
+
+  // ---- AI answer ----
+  function renderAI(res){
+    var ai = res.ai;
+    var html = '';
+    if(!ai.covered){
+      html += '<div class="msg">This case doesn\'t appear to be covered by the knowledge base.<br>'+
+              esc(ai.internal||'')+'</div>';
+      html += refsBlock(res.results, true);
+      return html;
+    }
+    // Internal guidance
+    html += '<div class="ai-card">'+
+      '<div class="lbl"><span class="dot"></span> What to do <span class="badge">AI</span></div>'+
+      '<div class="content" dir="auto">'+md(ai.internal, [])+'</div>'+
+    '</div>';
+    // English reply
+    if(ai.reply_en){
+      html += '<div class="ai-card reply">'+
+        '<button class="copy" onclick="copyText(this)" data-raw="'+esc(ai.reply_en)+'">Copy</button>'+
+        '<div class="lbl"><span class="dot"></span> Customer reply — English</div>'+
+        '<div class="reply-text">'+esc(ai.reply_en)+'</div>'+
+      '</div>';
+    }
+    // Egyptian Arabic reply
+    if(ai.reply_ar){
+      html += '<div class="ai-card reply">'+
+        '<button class="copy" onclick="copyText(this)" data-raw="'+esc(ai.reply_ar)+'">نسخ</button>'+
+        '<div class="lbl"><span class="dot"></span> رد العميل — بالمصري</div>'+
+        '<div class="reply-text ar">'+esc(ai.reply_ar)+'</div>'+
+      '</div>';
+    }
+    html += refsBlock(res.results, false);
+    return html;
+  }
+
+  function refsBlock(results, openFirst){
+    if(!results || !results.length) return '';
+    return '<div class="refs-h">Reference topics</div>' + cardsHtml(results, false);
+  }
+
+  // ---- Pure search ----
+  function renderSearch(res){
+    if(!res.count){
+      return '<div class="msg">No matching procedure found for <b>'+esc(res.query)+'</b>.<br>'+
+        'Try different words, or ask an admin to add this case to the knowledge base.</div>';
+    }
+    return cardsHtml(res.results, true);
+  }
+
+  function cardsHtml(results, openFirst){
+    var html = '';
+    results.forEach(function(r, i){
       var terms = r.matchedTerms || [];
       html +=
-        '<div class="card'+(i===0?' open':'')+'">'+
+        '<div class="card'+(openFirst && i===0?' open':'')+'">'+
           '<div class="card-h" onclick="toggle(this)">'+
             '<span class="cat">'+esc(r.category)+'</span>'+
             '<span class="title">'+esc(r.title)+'</span>'+
@@ -121,7 +190,7 @@
           '</div>'+
         '</div>';
     });
-    out.innerHTML = html;
+    return html;
   }
 
   function toggle(el){ el.parentNode.classList.toggle('open'); }
@@ -130,16 +199,17 @@
     var raw = el.getAttribute('data-raw');
     var ta = document.createElement('textarea');
     ta.value = raw; document.body.appendChild(ta); ta.select();
-    try{ document.execCommand('copy'); el.textContent='Copied ✓'; }
-    catch(e){ el.textContent='Copy failed'; }
+    var orig = el.textContent;
+    try{ document.execCommand('copy'); el.textContent='✓'; }
+    catch(e){ el.textContent='x'; }
     document.body.removeChild(ta);
-    setTimeout(function(){ el.textContent='Copy procedure'; }, 1600);
+    setTimeout(function(){ el.textContent=orig; }, 1500);
   }
 
   function esc(s){ return String(s==null?'':s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-  // Minimal, safe markdown-ish renderer for the KB content.
+  // Minimal, safe markdown-ish renderer for KB content / AI guidance.
   function md(text, terms){
     var lines = String(text||'').split('\n');
     var html = '', inList=false, inTbl=false;
@@ -147,7 +217,7 @@
     function closeTbl(){ if(inTbl){ html+='</div>'; inTbl=false; } }
     for(var i=0;i<lines.length;i++){
       var ln = lines[i];
-      if(/^\s*\|.*\|\s*$/.test(ln)){ // table row
+      if(/^\s*\|.*\|\s*$/.test(ln)){
         closeList();
         if(!inTbl){ html+='<div class="tbl">'; inTbl=true; }
         if(!/^\s*\|[\s|:-]+\|\s*$/.test(ln)) html += esc(ln)+'\n';

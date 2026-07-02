@@ -59,7 +59,21 @@
     <div class="row"><span class="k">Source</span><span class="v" id="s-source">—</span></div>
     <div class="row"><span class="k">Last Notion sync</span><span class="v" id="s-sync">—</span></div>
     <div class="row"><span class="k">Notion configured</span><span class="v" id="s-notion">—</span></div>
+    <div class="row"><span class="k">AI (Gemini) answering</span><span class="v" id="s-ai">—</span></div>
+    <div class="row"><span class="k">Gemini key set</span><span class="v" id="s-gemini">—</span></div>
     <div class="row"><span class="k">Data sheet (logs + keywords)</span><span class="v" id="s-sheet">—</span></div>
+  </div>
+
+  <div class="card">
+    <h2>AI mind (Gemini · free)</h2>
+    <div class="note">When ON, agents get an AI-written answer + a customer reply in English and
+      Egyptian Arabic, grounded in the matching KB topics. When OFF, agents get plain search results.
+      Requires a free <b>GEMINI_KEY</b> Script Property (aistudio.google.com).
+      Note: on the free tier, avoid pasting customer PII — describe the case instead.</div>
+    <div class="btns">
+      <button class="btn" id="aiBtn" onclick="toggleAi()">Loading…</button>
+    </div>
+    <div class="status" id="aiStatus"></div>
   </div>
 
   <div class="card">
@@ -89,6 +103,23 @@
 
 <script>
   var TITLES = [];
+  var AI_ON = false;
+  function updateAiBtn(){
+    var b = document.getElementById('aiBtn');
+    b.textContent = AI_ON ? 'Turn AI OFF' : 'Turn AI ON';
+    b.className = 'btn' + (AI_ON ? ' sec' : '');
+  }
+  function toggleAi(){
+    var b=document.getElementById('aiBtn'), s=document.getElementById('aiStatus');
+    b.disabled=true; s.textContent='Saving…';
+    google.script.run.withSuccessHandler(function(r){
+      b.disabled=false; AI_ON=r.aiEnabled; updateAiBtn();
+      document.getElementById('s-ai').innerHTML = AI_ON ? '<span class="ok">ON</span>' : 'off';
+      s.innerHTML = '<span class="ok">AI answering is now '+(AI_ON?'ON':'OFF')+'.</span>';
+    }).withFailureHandler(function(e){
+      b.disabled=false; s.innerHTML='<span class="err">'+esc(e.message||e)+'</span>';
+    }).setAiEnabled(!AI_ON);
+  }
   function esc(s){ return String(s==null?'':s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
@@ -101,6 +132,11 @@
       var n = document.getElementById('s-notion');
       n.innerHTML = st.notionConfigured ? '<span class="ok">yes</span>'
                                         : '<span class="warn">no (set NOTION_TOKEN & NOTION_PARENT_ID)</span>';
+      document.getElementById('s-ai').innerHTML = st.aiEnabled ? '<span class="ok">ON</span>' : 'off';
+      document.getElementById('s-gemini').innerHTML = st.geminiConfigured ? '<span class="ok">yes</span>'
+                                        : '<span class="warn">no (set GEMINI_KEY)</span>';
+      AI_ON = st.aiEnabled;
+      updateAiBtn();
       document.getElementById('s-sheet').innerHTML =
         '<a href="'+esc(st.dataSheetUrl)+'" target="_blank" rel="noopener">open</a>';
       TITLES = st.titles || [];
