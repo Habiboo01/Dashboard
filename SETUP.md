@@ -99,8 +99,16 @@ counted as **overtime** (whole worked span) and is **not** scored for lateness/b
 they weren't rostered. Overtime shows as its own matrix metric, a teal dot on the cell, a tag in the
 drill, and Overtime columns in the agent summary and MTD.
 
+## Total lost / to compensate
+The **Lost / compensate** metric is the total minutes an agent owes back for a day:
+`late + early-leave + break-over-allowance + offline-over-cap + personal time + in-shift unavailable`.
+It excludes normal break/offline (within allowance) and legitimate work (meetings/Jira/calls/email),
+and is **0 on overtime days**. The cell drill shows the line-by-line breakdown; the **MTD** tab leads
+with **Total lost (to compensate)** per agent (sorted worst-first) and exports it to CSV — that's the
+number to use for how many minutes each agent should make up.
+
 ## Metrics in the matrix toggle
-Late (min) · Break over (min) · Offline over 20 (min) · Early leave / short shift (min) · Overtime (min) · Shrinkage %.
+Late (min) · Break over (min) · Offline over 20 (min) · Early leave / short shift (min) · Overtime (min) · **Lost / compensate (min)** · Shrinkage %.
 Cells show minutes and a `×N` violation count, color-scaled by severity; a blue dot marks an applied
 exception. **Click a cell** for that day's full status timeline, break/shrinkage durations and which
 rules tripped. **Click an agent's name** for their totals over the selected window (break duration,

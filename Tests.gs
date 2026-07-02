@@ -67,6 +67,19 @@ function runTests() {
   check('C5 no late on WO day', m5.isLate === false);
   check('C5 no short-shift on WO day', m5.shortfallMin === 0, 'got ' + m5.shortfallMin);
 
+  // --- Case 6: total lost minutes to compensate ---
+  // 9:00 start, login 9:20 (late 20), single 40m break (over 60? no; over 30 seg), leaves 16:40 (short).
+  var s6 = mkShift_([
+    st_('Available', day + 'T09:20:00', day + 'T12:00:00'),
+    st_('Break', day + 'T12:00:00', day + 'T12:40:00'),       // 40m break (excess over 60 = 0)
+    st_('Personal Time', day + 'T12:40:00', day + 'T13:00:00'),// 20m personal
+    st_('Available', day + 'T13:00:00', day + 'T16:40:00')
+  ]);
+  var m6 = scoreShift_(s6, agent, { '2026-06-01': { startHour: 9, off: false } }, auxBuckets);
+  // late 20 + early leave (9h from 9:20 = 18:20 expected; left 16:40 -> ~100 short) + personal 20
+  check('C6 late 20', m6.lateMin === 20, 'got ' + m6.lateMin);
+  check('C6 lost includes late+personal+short', m6.lostMin >= 20 + 20 + 90, 'got ' + m6.lostMin);
+
   Logger.log(results.join('\n'));
   return results;
 }

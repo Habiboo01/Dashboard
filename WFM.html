@@ -154,6 +154,7 @@ table.list tr:hover td{background:var(--glass)}
         <button data-m="offline">Offline exceed</button>
         <button data-m="short">Early leave</button>
         <button data-m="overtime">Overtime</button>
+        <button data-m="lost">Lost / compensate</button>
         <button data-m="shrink">Shrinkage %</button>
       </div>
       <div class="spacer"></div>
@@ -265,6 +266,7 @@ var METRICS={
   offline:{label:'Offline over 20 (min)',get:c=>({v:c.offlineExcess,c:c.offlineExceeded?1:0,bad:c.offlineExceeded}),color:v=>heat(v,40),unit:'m'},
   short:{label:'Short shift (min)',get:c=>({v:c.shortfallMin,c:c.shortfallMin>0?1:0,bad:c.shortfallMin>0}),color:v=>heat(v,120),unit:'m'},
   overtime:{label:'Overtime (min)',get:c=>({v:c.overtimeMin||0,c:c.isOvertime?1:0,bad:false}),color:v=>heatPos(v,480),unit:'m'},
+  lost:{label:'Lost / to compensate (min)',get:c=>({v:c.lostMin||0,c:(c.lostMin>0?1:0),bad:c.lostMin>0}),color:v=>heat(v,120),unit:'m'},
   shrink:{label:'Shrinkage %',get:c=>({v:c.buckets.shrinkagePct,c:0,bad:c.buckets.shrinkagePct>25}),color:v=>heat(v,40),unit:'%'}
 };
 
@@ -447,24 +449,31 @@ function drill(aid,dt){
       kv('Productive',c.buckets.productive+'m')+
       kv('Non-productive',c.buckets.nonProductive+'m')+
       kv('Late',c.isLate?c.lateMin+'m':'—')+
+      kv('Total lost',(c.lostMin||0)+'m')+
     '</div>'+
+    ((c.lostMin>0)?('<div class="tool-label">To compensate ('+(c.lostMin||0)+'m)</div><div style="font-size:12px;color:var(--text2);margin-bottom:8px">'+
+      compLine('Late',c.lateMin)+compLine('Early leave',c.shortfallMin)+compLine('Break over',c.buckets.breakExcess)+
+      compLine('Offline over',c.buckets.offlineExcess)+compLine('Personal time',c.buckets.personalTime)+compLine('Unavailable',c.buckets.inShiftUnavail)+
+      '</div>'):'')+
     '<div class="tool-label">Status timeline</div><div class="timeline">'+(segs||'<div class="empty">no statuses</div>')+'</div>';
   document.getElementById('modal').classList.add('open');
 }
 function kv(k,v){return '<div><div class="k">'+k+'</div><div class="val">'+v+'</div></div>';}
 function hm(m){m=Math.round(m||0);return Math.floor(m/60)+'h '+(m%60)+'m';}
+function compLine(label,v){v=Math.round((v||0)*10)/10;return v>0?('• '+label+': '+v+'m &nbsp; '):'';}
 
 /* agent-level summary over the currently visible window */
 function agentDrill(aid){
   var a=DATA.agents.filter(function(x){return x.id==aid;})[0]||{name:aid};
   var dts=visibleDates(), rows=[];
-  var t={shifts:0,brk:0,shrinkMin:0,shrinkPctSum:0,off:0,offExc:0,prod:0,nonprod:0,late:0,lateCnt:0,brkCnt:0,offCnt:0,short:0,otMin:0,otDays:0};
+  var t={shifts:0,brk:0,shrinkMin:0,shrinkPctSum:0,off:0,offExc:0,prod:0,nonprod:0,late:0,lateCnt:0,brkCnt:0,offCnt:0,short:0,otMin:0,otDays:0,lost:0};
   dts.forEach(function(dt){
     var c=DATA.cells[aid]&&DATA.cells[aid][dt]; if(!c)return;
     t.shifts++; t.brk+=c.totalBreak; t.shrinkMin+=c.buckets.shrinkageMin; t.shrinkPctSum+=c.buckets.shrinkagePct;
     t.off+=c.totalOffline; t.offExc+=c.offlineExcess; t.prod+=c.buckets.productive; t.nonprod+=c.buckets.nonProductive;
     if(c.isLate){t.lateCnt++;t.late+=c.lateMin;} if(c.breakExceeded)t.brkCnt++; if(c.offlineExceeded)t.offCnt++; if(c.shortfallMin>0)t.short+=c.shortfallMin;
     if(c.isOvertime){t.otDays++;t.otMin+=c.overtimeMin||0;}
+    t.lost+=c.lostMin||0;
     rows.push({dt:dt,c:c});
   });
   var win=rangeMode==='all'?'all dates':(rangeMode==='day'?dts[0]:(dts[0]+' → '+dts[dts.length-1]));
@@ -474,6 +483,7 @@ function agentDrill(aid){
     '<span class="mclose" onclick="closeModal()">×</span>'+
     '<h3>'+a.name+'</h3><div class="sub">'+win+' · '+t.shifts+' shifts</div>'+
     '<div class="kv">'+
+      kv('Total lost',hm(t.lost)+' ('+Math.round(t.lost)+'m)')+
       kv('Break duration',hm(t.brk))+
       kv('Shrinkage duration',hm(t.shrinkMin))+
       kv('Avg shrinkage %',(t.shifts?Math.round(t.shrinkPctSum/t.shifts*10)/10:0)+'%')+
@@ -573,23 +583,24 @@ function fmtMonth(m){var p=m.split('-');return ['','Jan','Feb','Mar','Apr','May'
 function mtdRows(month){
   var dts=(DATA?DATA.dates:[]).filter(function(dt){return dt.slice(0,7)===month;}), rows=[];
   visibleAgents().forEach(function(a){
-    var t={shifts:0,brk:0,shrinkMin:0,shrinkPctSum:0,offExc:0,late:0,lateCnt:0,brkCnt:0,offCnt:0,short:0,otMin:0,otDays:0};
+    var t={shifts:0,brk:0,brkOver:0,shrinkMin:0,shrinkPctSum:0,offExc:0,late:0,lateCnt:0,brkCnt:0,offCnt:0,short:0,otMin:0,otDays:0,lost:0};
     dts.forEach(function(dt){var c=DATA.cells[a.id]&&DATA.cells[a.id][dt];if(!c)return;
-      t.shifts++;t.brk+=c.totalBreak;t.shrinkMin+=c.buckets.shrinkageMin;t.shrinkPctSum+=c.buckets.shrinkagePct;t.offExc+=c.offlineExcess;
+      t.shifts++;t.brk+=c.totalBreak;t.brkOver+=c.buckets.breakExcess;t.shrinkMin+=c.buckets.shrinkageMin;t.shrinkPctSum+=c.buckets.shrinkagePct;t.offExc+=c.offlineExcess;
       if(c.isLate){t.lateCnt++;t.late+=c.lateMin;}if(c.breakExceeded)t.brkCnt++;if(c.offlineExceeded)t.offCnt++;if(c.shortfallMin>0)t.short+=c.shortfallMin;
-      if(c.isOvertime){t.otDays++;t.otMin+=c.overtimeMin||0;}});
+      if(c.isOvertime){t.otDays++;t.otMin+=c.overtimeMin||0;}
+      t.lost+=c.lostMin||0;});
     if(!t.shifts)return;
-    rows.push({name:a.name,shifts:t.shifts,brk:Math.round(t.brk),shrinkMin:Math.round(t.shrinkMin),shrinkPct:Math.round(t.shrinkPctSum/t.shifts*10)/10,offExc:Math.round(t.offExc),late:Math.round(t.late),lateCnt:t.lateCnt,brkCnt:t.brkCnt,offCnt:t.offCnt,short:Math.round(t.short),otMin:Math.round(t.otMin),otDays:t.otDays});
+    rows.push({name:a.name,shifts:t.shifts,brk:Math.round(t.brk),brkOver:Math.round(t.brkOver),shrinkMin:Math.round(t.shrinkMin),shrinkPct:Math.round(t.shrinkPctSum/t.shifts*10)/10,offExc:Math.round(t.offExc),late:Math.round(t.late),lateCnt:t.lateCnt,brkCnt:t.brkCnt,offCnt:t.offCnt,short:Math.round(t.short),otMin:Math.round(t.otMin),otDays:t.otDays,lost:Math.round(t.lost)});
   });
-  rows.sort(function(a,b){return b.shrinkMin-a.shrinkMin;});
+  rows.sort(function(a,b){return b.lost-a.lost;});
   return rows;
 }
 function renderMTD(){
   if(!DATA)return;
   var month=document.getElementById('mtdMonth').value, rows=mtdRows(month);
-  var h='<table class="list"><thead><tr><th>Agent</th><th>Shifts</th><th>Break dur</th><th>Shrinkage dur</th><th>Avg shrink %</th><th>Offline over</th><th>Late (×/min)</th><th>Break ×</th><th>Offline ×</th><th>Early leave</th><th>Overtime (×/dur)</th></tr></thead><tbody>';
+  var h='<table class="list"><thead><tr><th>Agent</th><th>Shifts</th><th>Total lost (to compensate)</th><th>Late (×/min)</th><th>Early leave</th><th>Break over</th><th>Offline over</th><th>Break dur</th><th>Shrinkage dur</th><th>Avg shrink %</th><th>Overtime (×/dur)</th></tr></thead><tbody>';
   rows.forEach(function(r){
-    h+='<tr><td><b>'+r.name+'</b></td><td>'+r.shifts+'</td><td>'+hm(r.brk)+'</td><td>'+hm(r.shrinkMin)+'</td><td>'+r.shrinkPct+'%</td><td>'+r.offExc+'m</td><td>'+r.lateCnt+' / '+r.late+'m</td><td>'+r.brkCnt+'</td><td>'+r.offCnt+'</td><td>'+r.short+'m</td><td>'+r.otDays+' / '+hm(r.otMin)+'</td></tr>';
+    h+='<tr><td><b>'+r.name+'</b></td><td>'+r.shifts+'</td><td><b style="color:var(--amber)">'+hm(r.lost)+'</b> ('+r.lost+'m)</td><td>'+r.lateCnt+' / '+r.late+'m</td><td>'+r.short+'m</td><td>'+r.brkOver+'m</td><td>'+r.offExc+'m</td><td>'+hm(r.brk)+'</td><td>'+hm(r.shrinkMin)+'</td><td>'+r.shrinkPct+'%</td><td>'+r.otDays+' / '+hm(r.otMin)+'</td></tr>';
   });
   h+='</tbody></table>';
   document.getElementById('mtdWrap').innerHTML=rows.length?h:'<div class="empty">No data for '+fmtMonth(month)+'.</div>';
@@ -597,8 +608,8 @@ function renderMTD(){
 }
 function exportMTD(){
   var month=document.getElementById('mtdMonth').value, rows=mtdRows(month);
-  var head=['Agent','Shifts','Break duration (min)','Shrinkage duration (min)','Avg shrinkage %','Offline over (min)','Late count','Late (min)','Break exceed count','Offline exceed count','Early leave (min)','Overtime days','Overtime (min)'];
-  var lines=[head].concat(rows.map(function(r){return [r.name,r.shifts,r.brk,r.shrinkMin,r.shrinkPct,r.offExc,r.lateCnt,r.late,r.brkCnt,r.offCnt,r.short,r.otDays,r.otMin];}));
+  var head=['Agent','Shifts','Total lost / to compensate (min)','Late (min)','Early leave (min)','Break over (min)','Offline over (min)','Late count','Break exceed count','Offline exceed count','Break duration (min)','Shrinkage duration (min)','Avg shrinkage %','Overtime days','Overtime (min)'];
+  var lines=[head].concat(rows.map(function(r){return [r.name,r.shifts,r.lost,r.late,r.short,r.brkOver,r.offExc,r.lateCnt,r.brkCnt,r.offCnt,r.brk,r.shrinkMin,r.shrinkPct,r.otDays,r.otMin];}));
   var csv=lines.map(function(r){return r.map(function(x){return '"'+String(x==null?'':x).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
   var b=new Blob([csv],{type:'text/csv'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='wfm_MTD_'+month+'.csv';a.click();URL.revokeObjectURL(u);
 }

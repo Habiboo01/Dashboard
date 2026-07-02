@@ -396,6 +396,13 @@ function scoreShift_(shift, agent, schedForAgent, auxBuckets) {
     shortfallMin = 0;
   }
 
+  // --- total lost minutes the agent should compensate ---
+  // Every minute owed back: late arrival + early leave + break beyond the allowance
+  // + offline beyond the cap + personal time + in-shift unavailable. Zero on overtime days.
+  var lostMin = offScheduled ? 0 : round1_(
+    lateMin + shortfallMin + buckets.breakExcess + buckets.offlineExcess +
+    buckets.personalTime + buckets.inShiftUnavail);
+
   return {
     agentId: agent.id,
     agentName: agent.name,
@@ -412,6 +419,7 @@ function scoreShift_(shift, agent, schedForAgent, auxBuckets) {
     isLate: isLate,
     workedMin: workedMin,
     shortfallMin: shortfallMin,
+    lostMin: lostMin,
     totalBreak: totalBreak,
     breakSegments: segCount,
     breakOverMin: breakOverMin,
@@ -701,6 +709,7 @@ function mergeShifts_(a, b) {
   m.offlineExcess = a.offlineExcess + b.offlineExcess;
   m.offlineExceeded = a.offlineExceeded || b.offlineExceeded;
   m.shortfallMin = Math.max(a.shortfallMin, b.shortfallMin);
+  m.lostMin = (a.lostMin || 0) + (b.lostMin || 0);
   m.isOvertime = a.isOvertime || b.isOvertime;
   m.overtimeMin = (a.overtimeMin || 0) + (b.overtimeMin || 0);
   m.buckets.shrinkagePct = Math.max(a.buckets.shrinkagePct, b.buckets.shrinkagePct);
