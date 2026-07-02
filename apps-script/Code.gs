@@ -15,13 +15,7 @@
 function doGet(e) {
   var view = (e && e.parameter && e.parameter.view) || 'agent';
   if (view === 'admin') {
-    if (!isAdmin_()) {
-      return HtmlService.createHtmlOutput(
-        '<div style="font-family:sans-serif;padding:40px">' +
-        '<h2>Not authorized</h2><p>The admin panel is restricted. ' +
-        'Ask an administrator to add your Google account to ADMIN_EMAILS.</p></div>')
-        .setTitle('Telda Support — Admin');
-    }
+    // Access is link-based: anyone with the ?view=admin URL can open the panel.
     return HtmlService.createHtmlOutputFromFile('Admin')
       .setTitle('Telda Support — Admin')
       .addMetaTag('viewport', 'width=device-width, initial-scale=1');
@@ -52,7 +46,9 @@ function isAdmin_() {
 }
 
 function requireAdmin_() {
-  if (!isAdmin_()) throw new Error('Not authorized (admin only).');
+  // Admin access is now gated by possession of the ?view=admin link (see doGet),
+  // so this is intentionally a no-op. Restore the isAdmin_() check to re-lock.
+  return true;
 }
 
 // ---------- Settings (AI toggle, etc.) ----------
