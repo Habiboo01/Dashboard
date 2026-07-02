@@ -334,6 +334,11 @@ function scoreShift_(shift, agent, schedForAgent, auxBuckets) {
   var workedMin = Math.round((logout - login) / 60000);
   var shortfallMin = offScheduled ? 0 : Math.max(0, CONFIG.SHIFT_MINUTES - workedMin);
 
+  // --- overtime: rostered OFF (WO/AL/CL) but the agent actually worked ---
+  var isOvertime = offScheduled && workedMin > 0;
+  var overtimeMin = isOvertime ? workedMin : 0;
+  var offCode = sched.code || '';
+
   // --- aux tallies ---
   var auxMin = {};                                // status -> minutes
   var breakSegs = [];
@@ -381,6 +386,16 @@ function scoreShift_(shift, agent, schedForAgent, auxBuckets) {
   // --- bucket minutes ---
   var buckets = computeBuckets_(auxMin, auxBuckets, totalBreak, totalOffline);
 
+  // On an unscheduled (overtime) day, don't score adherence violations — the agent
+  // wasn't rostered, so lateness/break/offline/short-shift flags don't apply. The
+  // worked time is counted as overtime and durations are kept for reference.
+  if (offScheduled) {
+    isLate = false; lateMin = 0;
+    breakExceeded = false; breakRules = []; breakOverMin = 0;
+    offlineExceeded = false; offlineExcess = 0;
+    shortfallMin = 0;
+  }
+
   return {
     agentId: agent.id,
     agentName: agent.name,
@@ -390,6 +405,9 @@ function scoreShift_(shift, agent, schedForAgent, auxBuckets) {
     login: iso_(login),
     logout: iso_(logout),
     offScheduled: offScheduled,
+    offCode: offCode,
+    isOvertime: isOvertime,
+    overtimeMin: overtimeMin,
     lateMin: lateMin,
     isLate: isLate,
     workedMin: workedMin,
@@ -464,7 +482,7 @@ function resolveScheduledStart_(login, schedForAgent) {
     [prevYmd, loginYmd, nextYmd].forEach(function (d) {
       var cell = schedForAgent[d];
       if (!cell) return;
-      if (cell.off) { candidates.push({ date: d, off: true, start: dateAt_(d, 0) }); return; }
+      if (cell.off) { candidates.push({ date: d, off: true, start: dateAt_(d, 0), code: cell.code || 'WO' }); return; }
       if (cell.startHour != null) candidates.push({ date: d, off: false, start: dateAt_(d, cell.startHour) });
     });
   }
@@ -477,17 +495,17 @@ function resolveScheduledStart_(login, schedForAgent) {
     if (diff < bestDiff) { bestDiff = diff; best = c; }
   });
   if (best && bestDiff <= CONFIG.LOGIN_MATCH_WINDOW_MIN) {
-    return { start: best.start, off: false };
+    return { start: best.start, off: false, code: '' };
   }
 
-  // Roster explicitly marks the login day off (agent still logged in) -> informational.
+  // Roster explicitly marks the login day off (agent still logged in) -> overtime.
   var offToday = candidates.filter(function (c) { return c.off && c.date === loginYmd; });
   if (offToday.length && !candidates.some(function (c) { return !c.off; })) {
-    return { start: dateAt_(loginYmd, login.getHours()), off: true };
+    return { start: dateAt_(loginYmd, login.getHours()), off: true, code: offToday[0].code };
   }
 
   // Fallback: snap to nearest canonical start on the login day (or adjacent for overnight).
-  return { start: snapCanonical_(login), off: false };
+  return { start: snapCanonical_(login), off: false, code: '' };
 }
 
 function snapCanonical_(login) {
@@ -683,6 +701,8 @@ function mergeShifts_(a, b) {
   m.offlineExcess = a.offlineExcess + b.offlineExcess;
   m.offlineExceeded = a.offlineExceeded || b.offlineExceeded;
   m.shortfallMin = Math.max(a.shortfallMin, b.shortfallMin);
+  m.isOvertime = a.isOvertime || b.isOvertime;
+  m.overtimeMin = (a.overtimeMin || 0) + (b.overtimeMin || 0);
   m.buckets.shrinkagePct = Math.max(a.buckets.shrinkagePct, b.buckets.shrinkagePct);
   m.appliedExceptions = a.appliedExceptions.concat(b.appliedExceptions);
   return m;

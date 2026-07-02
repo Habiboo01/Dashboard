@@ -66,6 +66,7 @@ table.matrix tbody td{border-bottom:1px solid rgba(255,255,255,.03);border-right
 .cell .c{font-size:9.5px;color:var(--text2);margin-top:1px}
 .cell.clean{color:var(--text3)}
 .cell .exc{position:absolute;top:2px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--blue)}
+.cell .otdot{position:absolute;top:2px;left:3px;width:5px;height:5px;border-radius:50%;background:var(--teal)}
 td.tot,th.tot{position:sticky;right:0;background:var(--bg3);z-index:1;font-weight:600;border-left:1px solid var(--border-s)}
 tr.totrow th,tr.totrow td{position:sticky;bottom:0;background:var(--bg2);z-index:2;border-top:1px solid var(--border-s);font-weight:600;color:var(--text)}
 tr.totrow th.agent{z-index:6}
@@ -152,6 +153,7 @@ table.list tr:hover td{background:var(--glass)}
         <button data-m="break">Break exceed</button>
         <button data-m="offline">Offline exceed</button>
         <button data-m="short">Early leave</button>
+        <button data-m="overtime">Overtime</button>
         <button data-m="shrink">Shrinkage %</button>
       </div>
       <div class="spacer"></div>
@@ -262,10 +264,12 @@ var METRICS={
   break:{label:'Break over (min)',get:c=>({v:c.breakOverMin,c:c.breakExceeded?c.breakRules.length:0,bad:c.breakExceeded}),color:(v,c)=>c&&c.breakExceeded?heat(Math.max(v,10),40):'transparent',unit:'m'},
   offline:{label:'Offline over 20 (min)',get:c=>({v:c.offlineExcess,c:c.offlineExceeded?1:0,bad:c.offlineExceeded}),color:v=>heat(v,40),unit:'m'},
   short:{label:'Short shift (min)',get:c=>({v:c.shortfallMin,c:c.shortfallMin>0?1:0,bad:c.shortfallMin>0}),color:v=>heat(v,120),unit:'m'},
+  overtime:{label:'Overtime (min)',get:c=>({v:c.overtimeMin||0,c:c.isOvertime?1:0,bad:false}),color:v=>heatPos(v,480),unit:'m'},
   shrink:{label:'Shrinkage %',get:c=>({v:c.buckets.shrinkagePct,c:0,bad:c.buckets.shrinkagePct>25}),color:v=>heat(v,40),unit:'%'}
 };
 
 function heat(v,max){ if(!v||v<=0)return 'transparent'; var t=Math.min(1,v/max); var a=.12+t*.5; return 'rgba(239,68,68,'+a.toFixed(2)+')'; }
+function heatPos(v,max){ if(!v||v<=0)return 'transparent'; var t=Math.min(1,v/max); var a=.12+t*.5; return 'rgba(20,184,166,'+a.toFixed(2)+')'; }
 
 /* ---------- boot ---------- */
 function load(){
@@ -381,7 +385,8 @@ function renderMatrix(){
       var val=g.v?(g.v+(mdef.unit==='%'?'%':'')):'';
       var cnt=(METRIC!=='shrink'&&g.c)?'<span class="c">×'+g.c+'</span>':'';
       var exc=(c.appliedExceptions&&c.appliedExceptions.length)?'<span class="exc" title="exception applied"></span>':'';
-      h+='<td style="background:'+bg+'"><span class="cell'+(g.v?'':' clean')+'" onclick="drill(\''+a.id+'\',\''+dt+'\')"><span class="v">'+(val||'·')+'</span>'+cnt+exc+'</span></td>';
+      var ot=c.isOvertime?'<span class="otdot" title="Overtime: worked '+(c.overtimeMin||0)+'m on a rostered '+(c.offCode||'off')+' day"></span>':'';
+      h+='<td style="background:'+bg+'"><span class="cell'+(g.v?'':' clean')+'" onclick="drill(\''+a.id+'\',\''+dt+'\')"><span class="v">'+(val||'·')+'</span>'+cnt+exc+ot+'</span></td>';
     });
     var rowShow=isPct?(dates.length?Math.round(rowTot/dates.length*10)/10:0):rowTot;
     var rowTip=isPct?('Avg '+mdef.label+' = '+rowShow+'% over '+dates.length+' day(s)')
@@ -409,6 +414,7 @@ function renderLegend(){
     '<div class="lg"><span class="sw" style="background:rgba(239,68,68,.25)"></span>low</div>'+
     '<div class="lg"><span class="sw" style="background:rgba(239,68,68,.62)"></span>high</div>'+
     '<div class="lg"><span class="exc" style="position:static"></span> exception applied</div>'+
+    '<div class="lg"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--teal)"></span> overtime (worked on a rostered off day)</div>'+
     '<div class="lg">×N = days/times flagged</div>'+
     '<div class="lg"><b style="color:var(--text2)">last column</b> = '+(m.unit==='%'?'agent average':'agent total')+' of '+m.label+' for the shown period</div>'+
     '<div class="lg">click an agent name for their full totals</div>';
@@ -423,6 +429,7 @@ function drill(aid,dt){
   if(c.breakExceeded)c.breakRules.forEach(function(r){tags+='<span class="tag">break: '+r+'</span>';});
   if(c.offlineExceeded)tags+='<span class="tag">offline +'+c.offlineExcess+'m</span>';
   if(c.shortfallMin>0)tags+='<span class="tag">short '+c.shortfallMin+'m</span>';
+  if(c.isOvertime)tags+='<span class="tag" style="background:var(--teal)">overtime '+hm(c.overtimeMin)+' ('+(c.offCode||'off')+')</span>';
   if(!tags)tags='<span class="tag ok">no violations</span>';
   var exApplied='';
   (c.appliedExceptions||[]).forEach(function(e){exApplied+='<span class="tag info">✓ '+e.rule+(e.reason?': '+e.reason:'')+'</span>';});
@@ -451,12 +458,13 @@ function hm(m){m=Math.round(m||0);return Math.floor(m/60)+'h '+(m%60)+'m';}
 function agentDrill(aid){
   var a=DATA.agents.filter(function(x){return x.id==aid;})[0]||{name:aid};
   var dts=visibleDates(), rows=[];
-  var t={shifts:0,brk:0,shrinkMin:0,shrinkPctSum:0,off:0,offExc:0,prod:0,nonprod:0,late:0,lateCnt:0,brkCnt:0,offCnt:0,short:0};
+  var t={shifts:0,brk:0,shrinkMin:0,shrinkPctSum:0,off:0,offExc:0,prod:0,nonprod:0,late:0,lateCnt:0,brkCnt:0,offCnt:0,short:0,otMin:0,otDays:0};
   dts.forEach(function(dt){
     var c=DATA.cells[aid]&&DATA.cells[aid][dt]; if(!c)return;
     t.shifts++; t.brk+=c.totalBreak; t.shrinkMin+=c.buckets.shrinkageMin; t.shrinkPctSum+=c.buckets.shrinkagePct;
     t.off+=c.totalOffline; t.offExc+=c.offlineExcess; t.prod+=c.buckets.productive; t.nonprod+=c.buckets.nonProductive;
     if(c.isLate){t.lateCnt++;t.late+=c.lateMin;} if(c.breakExceeded)t.brkCnt++; if(c.offlineExceeded)t.offCnt++; if(c.shortfallMin>0)t.short+=c.shortfallMin;
+    if(c.isOvertime){t.otDays++;t.otMin+=c.overtimeMin||0;}
     rows.push({dt:dt,c:c});
   });
   var win=rangeMode==='all'?'all dates':(rangeMode==='day'?dts[0]:(dts[0]+' → '+dts[dts.length-1]));
@@ -475,6 +483,7 @@ function agentDrill(aid){
       kv('Break exceed',t.brkCnt+'×')+
       kv('Offline exceed',t.offCnt+'× / '+Math.round(t.offExc)+'m')+
       kv('Early leave',Math.round(t.short)+'m')+
+      kv('Overtime',t.otDays+'× / '+hm(t.otMin))+
     '</div>'+
     '<div class="tool-label">Per-day</div><div class="timeline">'+(body||'<div class="empty">no shifts in window</div>')+'</div>';
   document.getElementById('modal').classList.add('open');
@@ -564,12 +573,13 @@ function fmtMonth(m){var p=m.split('-');return ['','Jan','Feb','Mar','Apr','May'
 function mtdRows(month){
   var dts=(DATA?DATA.dates:[]).filter(function(dt){return dt.slice(0,7)===month;}), rows=[];
   visibleAgents().forEach(function(a){
-    var t={shifts:0,brk:0,shrinkMin:0,shrinkPctSum:0,offExc:0,late:0,lateCnt:0,brkCnt:0,offCnt:0,short:0};
+    var t={shifts:0,brk:0,shrinkMin:0,shrinkPctSum:0,offExc:0,late:0,lateCnt:0,brkCnt:0,offCnt:0,short:0,otMin:0,otDays:0};
     dts.forEach(function(dt){var c=DATA.cells[a.id]&&DATA.cells[a.id][dt];if(!c)return;
       t.shifts++;t.brk+=c.totalBreak;t.shrinkMin+=c.buckets.shrinkageMin;t.shrinkPctSum+=c.buckets.shrinkagePct;t.offExc+=c.offlineExcess;
-      if(c.isLate){t.lateCnt++;t.late+=c.lateMin;}if(c.breakExceeded)t.brkCnt++;if(c.offlineExceeded)t.offCnt++;if(c.shortfallMin>0)t.short+=c.shortfallMin;});
+      if(c.isLate){t.lateCnt++;t.late+=c.lateMin;}if(c.breakExceeded)t.brkCnt++;if(c.offlineExceeded)t.offCnt++;if(c.shortfallMin>0)t.short+=c.shortfallMin;
+      if(c.isOvertime){t.otDays++;t.otMin+=c.overtimeMin||0;}});
     if(!t.shifts)return;
-    rows.push({name:a.name,shifts:t.shifts,brk:Math.round(t.brk),shrinkMin:Math.round(t.shrinkMin),shrinkPct:Math.round(t.shrinkPctSum/t.shifts*10)/10,offExc:Math.round(t.offExc),late:Math.round(t.late),lateCnt:t.lateCnt,brkCnt:t.brkCnt,offCnt:t.offCnt,short:Math.round(t.short)});
+    rows.push({name:a.name,shifts:t.shifts,brk:Math.round(t.brk),shrinkMin:Math.round(t.shrinkMin),shrinkPct:Math.round(t.shrinkPctSum/t.shifts*10)/10,offExc:Math.round(t.offExc),late:Math.round(t.late),lateCnt:t.lateCnt,brkCnt:t.brkCnt,offCnt:t.offCnt,short:Math.round(t.short),otMin:Math.round(t.otMin),otDays:t.otDays});
   });
   rows.sort(function(a,b){return b.shrinkMin-a.shrinkMin;});
   return rows;
@@ -577,9 +587,9 @@ function mtdRows(month){
 function renderMTD(){
   if(!DATA)return;
   var month=document.getElementById('mtdMonth').value, rows=mtdRows(month);
-  var h='<table class="list"><thead><tr><th>Agent</th><th>Shifts</th><th>Break dur</th><th>Shrinkage dur</th><th>Avg shrink %</th><th>Offline over</th><th>Late (×/min)</th><th>Break ×</th><th>Offline ×</th><th>Early leave</th></tr></thead><tbody>';
+  var h='<table class="list"><thead><tr><th>Agent</th><th>Shifts</th><th>Break dur</th><th>Shrinkage dur</th><th>Avg shrink %</th><th>Offline over</th><th>Late (×/min)</th><th>Break ×</th><th>Offline ×</th><th>Early leave</th><th>Overtime (×/dur)</th></tr></thead><tbody>';
   rows.forEach(function(r){
-    h+='<tr><td><b>'+r.name+'</b></td><td>'+r.shifts+'</td><td>'+hm(r.brk)+'</td><td>'+hm(r.shrinkMin)+'</td><td>'+r.shrinkPct+'%</td><td>'+r.offExc+'m</td><td>'+r.lateCnt+' / '+r.late+'m</td><td>'+r.brkCnt+'</td><td>'+r.offCnt+'</td><td>'+r.short+'m</td></tr>';
+    h+='<tr><td><b>'+r.name+'</b></td><td>'+r.shifts+'</td><td>'+hm(r.brk)+'</td><td>'+hm(r.shrinkMin)+'</td><td>'+r.shrinkPct+'%</td><td>'+r.offExc+'m</td><td>'+r.lateCnt+' / '+r.late+'m</td><td>'+r.brkCnt+'</td><td>'+r.offCnt+'</td><td>'+r.short+'m</td><td>'+r.otDays+' / '+hm(r.otMin)+'</td></tr>';
   });
   h+='</tbody></table>';
   document.getElementById('mtdWrap').innerHTML=rows.length?h:'<div class="empty">No data for '+fmtMonth(month)+'.</div>';
@@ -587,8 +597,8 @@ function renderMTD(){
 }
 function exportMTD(){
   var month=document.getElementById('mtdMonth').value, rows=mtdRows(month);
-  var head=['Agent','Shifts','Break duration (min)','Shrinkage duration (min)','Avg shrinkage %','Offline over (min)','Late count','Late (min)','Break exceed count','Offline exceed count','Early leave (min)'];
-  var lines=[head].concat(rows.map(function(r){return [r.name,r.shifts,r.brk,r.shrinkMin,r.shrinkPct,r.offExc,r.lateCnt,r.late,r.brkCnt,r.offCnt,r.short];}));
+  var head=['Agent','Shifts','Break duration (min)','Shrinkage duration (min)','Avg shrinkage %','Offline over (min)','Late count','Late (min)','Break exceed count','Offline exceed count','Early leave (min)','Overtime days','Overtime (min)'];
+  var lines=[head].concat(rows.map(function(r){return [r.name,r.shifts,r.brk,r.shrinkMin,r.shrinkPct,r.offExc,r.lateCnt,r.late,r.brkCnt,r.offCnt,r.short,r.otDays,r.otMin];}));
   var csv=lines.map(function(r){return r.map(function(x){return '"'+String(x==null?'':x).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
   var b=new Blob([csv],{type:'text/csv'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='wfm_MTD_'+month+'.csv';a.click();URL.revokeObjectURL(u);
 }

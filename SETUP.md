@@ -93,8 +93,14 @@ Open the web-app URL. Adjust the timezone in `appsscript.json` if your team isn'
 - **Shrinkage% = (off-queue auxes + unplanned non-productive) ÷ 9h**, excusing the allowed 60-min break
   and 20-min offline. Switch `CONFIG.SHRINKAGE_MODE` to `'gross'` to count everything non-Available.
 
+## Overtime (worked on a rostered off day)
+If the `Schedule` marks a day `WO`/`AL`/`CL` but the agent actually logged in and worked, that day is
+counted as **overtime** (whole worked span) and is **not** scored for lateness/break/offline/short-shift —
+they weren't rostered. Overtime shows as its own matrix metric, a teal dot on the cell, a tag in the
+drill, and Overtime columns in the agent summary and MTD.
+
 ## Metrics in the matrix toggle
-Late (min) · Break over (min) · Offline over 20 (min) · Early leave / short shift (min) · Shrinkage %.
+Late (min) · Break over (min) · Offline over 20 (min) · Early leave / short shift (min) · Overtime (min) · Shrinkage %.
 Cells show minutes and a `×N` violation count, color-scaled by severity; a blue dot marks an applied
 exception. **Click a cell** for that day's full status timeline, break/shrinkage durations and which
 rules tripped. **Click an agent's name** for their totals over the selected window (break duration,

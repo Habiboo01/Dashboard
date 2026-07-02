@@ -59,6 +59,14 @@ function runTests() {
   applyExceptions_(m4, [{ agentId: '18', date: '2026-06-01', rule: 'early_leave', minutes: 60, reason: 'approved' }], auxBuckets);
   check('C4 short cleared by exception', m4.shortfallMin === 0, 'got ' + m4.shortfallMin);
 
+  // --- Case 5: overtime (worked on a rostered WO day) ---
+  var s5 = mkShift_([ st_('Available', day + 'T09:00:00', day + 'T14:00:00') ]); // 5h on a WO day
+  var m5 = scoreShift_(s5, agent, { '2026-06-01': { startHour: null, off: true, code: 'WO' } }, auxBuckets);
+  check('C5 overtime flagged', m5.isOvertime === true, 'code ' + m5.offCode);
+  check('C5 overtime ~300m', Math.abs(m5.overtimeMin - 300) <= 2, 'got ' + m5.overtimeMin);
+  check('C5 no late on WO day', m5.isLate === false);
+  check('C5 no short-shift on WO day', m5.shortfallMin === 0, 'got ' + m5.shortfallMin);
+
   Logger.log(results.join('\n'));
   return results;
 }
