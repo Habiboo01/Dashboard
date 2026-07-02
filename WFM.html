@@ -451,16 +451,16 @@ function drill(aid,dt){
       kv('Late',c.isLate?c.lateMin+'m':'—')+
       kv('Total lost',(c.lostMin||0)+'m')+
     '</div>'+
-    ((c.lostMin>0)?('<div class="tool-label">To compensate ('+(c.lostMin||0)+'m)</div><div style="font-size:12px;color:var(--text2);margin-bottom:8px">'+
-      compLine('Late',c.lateMin)+compLine('Early leave',c.shortfallMin)+compLine('Break over',c.buckets.breakExcess)+
-      compLine('Offline over',c.buckets.offlineExcess)+compLine('Personal time',c.buckets.personalTime)+compLine('Unavailable',c.buckets.inShiftUnavail)+
-      '</div>'):'')+
+    '<div class="tool-label">Lost / to compensate</div><div style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.7">'+
+      'Expected on-queue = '+DATA.config.shiftMinutes+'m − '+DATA.config.breakTarget+'m break − '+DATA.config.offlineCap+'m offline = <b>'+(DATA.config.shiftMinutes-DATA.config.breakTarget-DATA.config.offlineCap)+'m</b><br>'+
+      '− Available '+c.buckets.productive+'m − productive aux (Calls/Meeting/Jira/Email) '+c.buckets.shrinkageAux+'m<br>'+
+      '= <b style="color:var(--amber)">'+(c.lostMin||0)+'m lost</b>'+(c.isOvertime?' &nbsp;(overtime day — not counted)':'')+
+      '</div>'+
     '<div class="tool-label">Status timeline</div><div class="timeline">'+(segs||'<div class="empty">no statuses</div>')+'</div>';
   document.getElementById('modal').classList.add('open');
 }
 function kv(k,v){return '<div><div class="k">'+k+'</div><div class="val">'+v+'</div></div>';}
 function hm(m){m=Math.round(m||0);return Math.floor(m/60)+'h '+(m%60)+'m';}
-function compLine(label,v){v=Math.round((v||0)*10)/10;return v>0?('• '+label+': '+v+'m &nbsp; '):'';}
 
 /* agent-level summary over the currently visible window */
 function agentDrill(aid){

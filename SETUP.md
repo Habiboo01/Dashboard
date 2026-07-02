@@ -100,12 +100,16 @@ they weren't rostered. Overtime shows as its own matrix metric, a teal dot on th
 drill, and Overtime columns in the agent summary and MTD.
 
 ## Total lost / to compensate
-The **Lost / compensate** metric is the total minutes an agent owes back for a day:
-`late + early-leave + break-over-allowance + offline-over-cap + personal time + in-shift unavailable`.
-It excludes normal break/offline (within allowance) and legitimate work (meetings/Jira/calls/email),
-and is **0 on overtime days**. The cell drill shows the line-by-line breakdown; the **MTD** tab leads
-with **Total lost (to compensate)** per agent (sorted worst-first) and exports it to CSV — that's the
-number to use for how many minutes each agent should make up.
+The **Lost / compensate** metric is the on-queue shortfall for a day:
+
+> **Lost = shift (9h) − break allowance (60m) − offline allowance (20m) − productive aux (Calls+Meeting+Jira+Email) − Available**
+
+i.e. of the ~460 minutes the agent is expected to be on-queue, whatever they didn't cover with
+**Available** time plus other productive auxes is "lost". Late arrival, early leave, extra break/offline,
+personal time and unavailable all reduce covered time and therefore raise lost automatically — there's
+no separate line for unavailable. Clamped at 0 (never negative) and **0 on overtime days**.
+The cell drill shows the calculation; the **MTD** tab leads with **Total lost (to compensate)** per agent
+(sorted worst-first) and exports to CSV — that's the number of minutes each agent should make up.
 
 ## Metrics in the matrix toggle
 Late (min) · Break over (min) · Offline over 20 (min) · Early leave / short shift (min) · Overtime (min) · **Lost / compensate (min)** · Shrinkage %.

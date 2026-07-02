@@ -76,9 +76,9 @@ function runTests() {
     st_('Available', day + 'T13:00:00', day + 'T16:40:00')
   ]);
   var m6 = scoreShift_(s6, agent, { '2026-06-01': { startHour: 9, off: false } }, auxBuckets);
-  // late 20 + early leave (9h from 9:20 = 18:20 expected; left 16:40 -> ~100 short) + personal 20
+  // Available = 160 + 220 = 380; expected on-queue = 540 - 60 - 20 = 460; lost = 80.
   check('C6 late 20', m6.lateMin === 20, 'got ' + m6.lateMin);
-  check('C6 lost includes late+personal+short', m6.lostMin >= 20 + 20 + 90, 'got ' + m6.lostMin);
+  check('C6 lost = 460 - available(380) = 80', Math.abs(m6.lostMin - 80) <= 1, 'got ' + m6.lostMin);
 
   Logger.log(results.join('\n'));
   return results;

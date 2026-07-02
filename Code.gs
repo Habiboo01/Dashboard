@@ -396,12 +396,14 @@ function scoreShift_(shift, agent, schedForAgent, auxBuckets) {
     shortfallMin = 0;
   }
 
-  // --- total lost minutes the agent should compensate ---
-  // Every minute owed back: late arrival + early leave + break beyond the allowance
-  // + offline beyond the cap + personal time + in-shift unavailable. Zero on overtime days.
-  var lostMin = offScheduled ? 0 : round1_(
-    lateMin + shortfallMin + buckets.breakExcess + buckets.offlineExcess +
-    buckets.personalTime + buckets.inShiftUnavail);
+  // --- total lost minutes the agent should compensate (on-queue shortfall) ---
+  // Expected on-queue time = full shift - allowed break - allowed offline. Whatever the agent
+  // did NOT cover with Available + other productive auxes (Calls/Meeting/Jira/Email) is "lost".
+  // Late arrival, early leave, extra break/offline, personal time and unavailable all reduce the
+  // covered time and therefore raise lost automatically. Zero on overtime days.
+  var expectedOnQueue = CONFIG.SHIFT_MINUTES - CONFIG.BREAK_TARGET_MIN - CONFIG.OFFLINE_CAP_MIN;
+  var coveredMin = (buckets.productive || 0) + (buckets.shrinkageAux || 0);
+  var lostMin = offScheduled ? 0 : round1_(Math.max(0, expectedOnQueue - coveredMin));
 
   return {
     agentId: agent.id,
