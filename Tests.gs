@@ -124,6 +124,13 @@ function runTests() {
   var built = buildShifts_(stx);
   check('C10 splits on long Unavailable despite wrong durMin', built.length === 2, 'got ' + built.length);
 
+  // --- Case 11: a distant Performance login must NOT attach to a midnight fragment ---
+  var s11 = mkShift_([ st_('Upcoming Offline', day + 'T23:16:00', day + 'T23:59:00') ]);
+  var perf11 = { '2026-06-01': { login: new Date(day + 'T15:00:00'), logout: new Date(day + 'T23:48:00') } };
+  var m11 = scoreShift_(s11, agent, { '2026-06-01': { startHour: 0, off: false } }, auxBuckets, perf11);
+  check('C11 distant perf login not attached to fragment', m11.loginSource === 'timeline', m11.loginSource);
+  check('C11 no absurd lateness', m11.lateMin < 60, 'late ' + m11.lateMin);
+
   Logger.log(results.join('\n'));
   return results;
 }

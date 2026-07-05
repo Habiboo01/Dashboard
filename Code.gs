@@ -28,6 +28,8 @@ var CONFIG = {
   LATE_GRACE_MIN: 5,
   SHIFT_SPLIT_GAP_MIN: 120,       // an Unavailable gap longer than this ends a shift
   LOGIN_MATCH_WINDOW_MIN: 180,    // login within this of a scheduled start binds to it
+  PERF_MATCH_WINDOW_MIN: 240,     // a Performance login must be within this of a shift's start to attach
+  MIN_SHIFT_MIN: 45,              // drop timeline fragments shorter than this (only when no Performance)
   SHRINKAGE_MODE: 'unplanned',    // 'unplanned' (excuse allowed break/offline) | 'gross'
   // The 5 canonical shifts (each 9h): 09-18, 12-21, 15-00, 18-03, 00-09.
   // Used only as a fallback when the Schedule has no roster entry for that agent/day.
@@ -441,6 +443,22 @@ function buildShifts_(statuses) {
   return shifts;
 }
 
+/** Find the Performance record whose login is closest to (and within window of) a shift's start. */
+function lookupPerf_(perfForAgent, shiftStart) {
+  if (!perfForAgent || !shiftStart) return null;
+  var keys = [ymd_(new Date(shiftStart.getTime() - 86400000)), ymd_(shiftStart),
+              ymd_(new Date(shiftStart.getTime() + 86400000))];
+  var best = null, bestDiff = Infinity;
+  keys.forEach(function (k) {
+    var rec = perfForAgent[k];
+    if (rec && rec.login) {
+      var diff = Math.abs(rec.login - shiftStart) / 60000;
+      if (diff < bestDiff) { bestDiff = diff; best = rec; }
+    }
+  });
+  return (best && bestDiff <= CONFIG.PERF_MATCH_WINDOW_MIN) ? best : null;
+}
+
 /** Score one shift against all rules; returns a metrics object (pre-exception). */
 function scoreShift_(shift, agent, schedForAgent, auxBuckets, perfForAgent) {
   var login = shift.start;
@@ -456,7 +474,7 @@ function scoreShift_(shift, agent, schedForAgent, auxBuckets, perfForAgent) {
   // --- authoritative login/logout from the Performance sheet, if provided ---
   // Timeline drives shift grouping + breaks; Performance (when configured) is the
   // source of truth for the actual first login and logout used for late/early/overtime.
-  var perfRec = perfForAgent && (perfForAgent[ymd_(scheduledStart)] || perfForAgent[ymd_(login)]);
+  var perfRec = lookupPerf_(perfForAgent, shift.start);
   var loginSource = 'timeline';
   if (perfRec) {
     if (perfRec.login) { login = perfRec.login; loginSource = 'performance'; }
@@ -802,7 +820,14 @@ function getDashboardData(opts) {
     var agent = agents.byId[id] || { id: id, name: (rawByAgent[id][0] || {}).agentName || id, included: true };
     if (!agent.included) return; // drop excluded agents entirely
     var shifts = buildShifts_(rawByAgent[id]);
+    var agentPerf = performance[id];
+    var agentHasPerf = agentPerf && Object.keys(agentPerf).length > 0;
     shifts.forEach(function (shift) {
+      // Drop timeline fragments: if the agent is in Performance, a real shift must match a
+      // Performance login nearby; otherwise (no Performance) drop very short fragments.
+      var span = ((shift.lastEnd || shift.start) - shift.start) / 60000;
+      if (agentHasPerf) { if (!lookupPerf_(agentPerf, shift.start)) return; }
+      else if (span < CONFIG.MIN_SHIFT_MIN) return;
       var scored = scoreShift_(shift, agent, schedule[id], auxBuckets, performance[id]);
       applyExceptions_(scored, exceptions, auxBuckets);
       var d = scored.date;
