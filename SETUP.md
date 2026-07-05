@@ -136,7 +136,10 @@ reclassifies time into covered work — so lost drops accordingly. The drill sho
 Delete an exception anytime from the **Exceptions** tab (✕ Delete) and the numbers recompute.
 
 ## Metrics in the matrix toggle
-Late (min) · Break over (min) · Offline over 20 (min) · Early leave / short shift (min) · Overtime (min) · **Lost / compensate (min)** · Shrinkage %.
+**Violations (default)** · Late (min) · Break over (min) · Offline over 20 (min) · Early leave (min) · Overtime (min) · **Lost / compensate (min)** · Shrinkage %.
+The **Violations** view is the calendar default and shows only rule breaches — late login + break-exceed
++ offline-exceed + early-leave minutes (with a ×count). It deliberately hides productive/non-productive
+aux durations and shrinkage, so the grid shows *only* what an agent did wrong.
 Cells show minutes and a `×N` violation count, color-scaled by severity; a blue dot marks an applied
 exception. **Click a cell** for that day's full status timeline, break/shrinkage durations and which
 rules tripped. **Click an agent's name** for their totals over the selected window (break duration,

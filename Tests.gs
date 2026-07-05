@@ -113,6 +113,17 @@ function runTests() {
   var m9b = scoreShift_(s9, agent, { '2026-06-01': { startHour: 15, off: false } }, auxBuckets);
   check('C9 timeline login would be late 20', m9b.isLate === true && Math.abs(m9b.lateMin - 20) <= 1, 'got ' + m9b.lateMin);
 
+  // --- Case 10: long between-shift Unavailable with a WRONG small duration_min still splits ---
+  var d2 = '2026-06-04';
+  var stx = [
+    st_('Available', day + 'T18:00:00', day + 'T23:00:00'),
+    st_('Unavailable', day + 'T23:00:00', d2 + 'T18:00:00'), // ~43h gap, but reported as 3m below
+    st_('Available', d2 + 'T18:00:00', d2 + 'T23:00:00')
+  ];
+  stx[1].durMin = 3; // corrupt duration that previously merged the two shifts
+  var built = buildShifts_(stx);
+  check('C10 splits on long Unavailable despite wrong durMin', built.length === 2, 'got ' + built.length);
+
   Logger.log(results.join('\n'));
   return results;
 }

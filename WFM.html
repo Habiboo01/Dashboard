@@ -149,7 +149,8 @@ table.list tr:hover td{background:var(--glass)}
     <div class="toolbar">
       <span class="tool-label">Metric</span>
       <div class="metricseg" id="metricSeg">
-        <button data-m="late" class="on">Late</button>
+        <button data-m="violations" class="on">Violations</button>
+        <button data-m="late">Late</button>
         <button data-m="break">Break exceed</button>
         <button data-m="offline">Offline exceed</button>
         <button data-m="short">Early leave</button>
@@ -254,13 +255,14 @@ table.list tr:hover td{background:var(--glass)}
 <div class="toast" id="toast"></div>
 
 <script>
-var DATA=null, METRIC='late', gserver=(typeof google!=='undefined'&&google.script&&google.script.run);
+var DATA=null, METRIC='violations', gserver=(typeof google!=='undefined'&&google.script&&google.script.run);
 var rangeMode='week', anchorDate=null;
 var hiddenAgents=new Set((JSON.parse(localStorage.getItem('wfm_hidden')||'[]')).map(String));
 function saveHidden(){ localStorage.setItem('wfm_hidden', JSON.stringify(Array.from(hiddenAgents))); }
 
 /* metric definitions -> how each cell reads */
 var METRICS={
+  violations:{label:'Violations (min)',get:c=>{var v=Math.round(((c.isLate?c.lateMin:0)+(c.breakExceeded?c.breakOverMin:0)+(c.offlineExceeded?c.offlineExcess:0)+(c.shortfallMin||0))*10)/10;var n=(c.isLate?1:0)+(c.breakExceeded?1:0)+(c.offlineExceeded?1:0)+(c.shortfallMin>0?1:0);return {v:v,c:n,bad:n>0};},color:(v,c)=>c&&((c.isLate?1:0)+(c.breakExceeded?1:0)+(c.offlineExceeded?1:0)+(c.shortfallMin>0?1:0))?heat(Math.max(v,8),90):'transparent',unit:'m'},
   late:{label:'Late (min)',get:c=>({v:c.lateMin,c:c.isLate?1:0,bad:c.isLate}),color:v=>heat(v,45),unit:'m'},
   break:{label:'Break over (min)',get:c=>({v:c.breakOverMin,c:c.breakExceeded?c.breakRules.length:0,bad:c.breakExceeded}),color:(v,c)=>c&&c.breakExceeded?heat(Math.max(v,10),40):'transparent',unit:'m'},
   offline:{label:'Offline over 20 (min)',get:c=>({v:c.offlineExcess,c:c.offlineExceeded?1:0,bad:c.offlineExceeded}),color:v=>heat(v,40),unit:'m'},

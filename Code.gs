@@ -420,8 +420,10 @@ function buildShifts_(statuses) {
   for (var i = 0; i < statuses.length; i++) {
     var st = statuses[i];
     var isUnavail = /unavailable/i.test(st.status);
-    var span = st.durMin != null ? st.durMin
-             : (st.end ? (st.end - st.start) / 60000 : null);
+    // Use the ACTUAL clock span (end - start), not the reported duration_min, which
+    // can be wrong for long between-shift Unavailable blocks (e.g. a WO gap logged as "3m").
+    var span = st.end ? (st.end - st.start) / 60000
+             : (st.durMin != null ? st.durMin : null);
     var bigGap = isUnavail && (span == null || span > CONFIG.SHIFT_SPLIT_GAP_MIN);
 
     // A large plain time gap before this status also splits shifts.
@@ -1021,14 +1023,14 @@ function onOpen() {
 /** Build every output tab from the current data. */
 function buildSheetReport() {
   var data = getDashboardData({});
-  var metric = getConfigValue_('sheet_metric') || 'lost';
+  var metric = getConfigValue_('sheet_metric') || 'violations';
   writeMatrixTab_(data, metric);
   writeMtdTab_(data, getConfigValue_('mtd_month') || latestMonth_(data.dates));
   writeDetailTab_(data);
   try { SpreadsheetApp.getActive().toast('WFM tabs refreshed', 'WFM Dashboard', 5); } catch (e) {}
 }
 function buildMtdOnly_() { var d = getDashboardData({}); writeMtdTab_(d, getConfigValue_('mtd_month') || latestMonth_(d.dates)); }
-function buildMatrixOnly_() { var d = getDashboardData({}); writeMatrixTab_(d, getConfigValue_('sheet_metric') || 'lost'); }
+function buildMatrixOnly_() { var d = getDashboardData({}); writeMatrixTab_(d, getConfigValue_('sheet_metric') || 'violations'); }
 
 function getConfigValue_(key) {
   var rows = readSheetObjects_('Config').rows;
@@ -1054,6 +1056,12 @@ function latestMonth_(dates) { return dates.length ? dates[dates.length - 1].sli
 /** Value + flagged state for a given metric on one agent-day cell. */
 function metricValue_(c, metric) {
   switch (metric) {
+    case 'violations': {
+      var v = (c.isLate ? c.lateMin : 0) + (c.breakExceeded ? c.breakOverMin : 0) +
+              (c.offlineExceeded ? c.offlineExcess : 0) + (c.shortfallMin || 0);
+      var n = (c.isLate ? 1 : 0) + (c.breakExceeded ? 1 : 0) + (c.offlineExceeded ? 1 : 0) + (c.shortfallMin > 0 ? 1 : 0);
+      return { v: Math.round(v * 10) / 10, flagged: n > 0, unit: 'm' };
+    }
     case 'late':     return { v: c.lateMin, flagged: c.isLate, unit: 'm' };
     case 'break':    return { v: c.breakOverMin, flagged: c.breakExceeded, unit: 'm' };
     case 'offline':  return { v: c.offlineExcess, flagged: c.offlineExceeded, unit: 'm' };
@@ -1064,6 +1072,7 @@ function metricValue_(c, metric) {
   }
 }
 var METRIC_LABEL = {
+  violations: 'Violations (late + break + offline + early-leave, min)',
   lost: 'Lost / to compensate (min)', late: 'Late (min)', break: 'Break over (min)',
   offline: 'Offline over 20 (min)', short: 'Early leave (min)', overtime: 'Overtime (min)',
   shrink: 'Shrinkage %'
