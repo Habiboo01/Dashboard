@@ -1003,3 +1003,208 @@ function parseShiftCell_(v) {
   // anything else (WO, AL, SL, CL, UPL, NCNS, Holiday, Resigned, …) = off / no shift
   return { startHour: null, off: true, code: s.toUpperCase() };
 }
+
+/* ==================== NATIVE GOOGLE SHEETS OUTPUT ==================== */
+/**
+ * Adds a "WFM Dashboard" menu to the spreadsheet so the whole dashboard can be
+ * produced as native tabs (no web app needed). Runs automatically on open.
+ */
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('WFM Dashboard')
+    .addItem('Refresh all tabs', 'buildSheetReport')
+    .addSeparator()
+    .addItem('Refresh MTD only', 'buildMtdOnly_')
+    .addItem('Refresh Matrix only', 'buildMatrixOnly_')
+    .addToUi();
+}
+
+/** Build every output tab from the current data. */
+function buildSheetReport() {
+  var data = getDashboardData({});
+  var metric = getConfigValue_('sheet_metric') || 'lost';
+  writeMatrixTab_(data, metric);
+  writeMtdTab_(data, getConfigValue_('mtd_month') || latestMonth_(data.dates));
+  writeDetailTab_(data);
+  try { SpreadsheetApp.getActive().toast('WFM tabs refreshed', 'WFM Dashboard', 5); } catch (e) {}
+}
+function buildMtdOnly_() { var d = getDashboardData({}); writeMtdTab_(d, getConfigValue_('mtd_month') || latestMonth_(d.dates)); }
+function buildMatrixOnly_() { var d = getDashboardData({}); writeMatrixTab_(d, getConfigValue_('sheet_metric') || 'lost'); }
+
+function getConfigValue_(key) {
+  var rows = readSheetObjects_('Config').rows;
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i]['setting'] || '').trim().toLowerCase() === key) {
+      var v = rows[i]['value'];
+      return (v === '' || v == null) ? null : String(v).trim().toLowerCase();
+    }
+  }
+  return null;
+}
+
+function getOrCreateSheet_(name) {
+  var ss = ss_();
+  var sh = ss.getSheetByName(name);
+  if (!sh) sh = ss.insertSheet(name);
+  sh.clear();
+  return sh;
+}
+
+function latestMonth_(dates) { return dates.length ? dates[dates.length - 1].slice(0, 7) : ''; }
+
+/** Value + flagged state for a given metric on one agent-day cell. */
+function metricValue_(c, metric) {
+  switch (metric) {
+    case 'late':     return { v: c.lateMin, flagged: c.isLate, unit: 'm' };
+    case 'break':    return { v: c.breakOverMin, flagged: c.breakExceeded, unit: 'm' };
+    case 'offline':  return { v: c.offlineExcess, flagged: c.offlineExceeded, unit: 'm' };
+    case 'short':    return { v: c.shortfallMin, flagged: c.shortfallMin > 0, unit: 'm' };
+    case 'overtime': return { v: c.overtimeMin, flagged: c.isOvertime, unit: 'm', positive: true };
+    case 'shrink':   return { v: c.buckets.shrinkagePct, flagged: c.buckets.shrinkagePct > 25, unit: '%' };
+    default:         return { v: c.lostMin, flagged: c.lostMin > 0, unit: 'm' }; // lost
+  }
+}
+var METRIC_LABEL = {
+  lost: 'Lost / to compensate (min)', late: 'Late (min)', break: 'Break over (min)',
+  offline: 'Offline over 20 (min)', short: 'Early leave (min)', overtime: 'Overtime (min)',
+  shrink: 'Shrinkage %'
+};
+
+/** Agents (rows) x dates (cols) matrix in a tab, colour-scaled. */
+function writeMatrixTab_(data, metric) {
+  metric = metric || 'lost';
+  var sh = getOrCreateSheet_('WFM_Matrix');
+  var agents = data.agents, dates = data.dates;
+  var isPct = (metric === 'shrink'), positive = (metric === 'overtime');
+
+  var header = ['Agent'].concat(dates).concat([isPct ? 'Avg' : 'Total']);
+  var rows = [header];
+  var values = [];   // numeric grid for colouring (agents x dates)
+  var maxV = 1;
+
+  agents.forEach(function (a) {
+    var line = [a.name], rowVals = [], rowTot = 0, n = 0;
+    dates.forEach(function (dt) {
+      var c = data.cells[a.id] && data.cells[a.id][dt];
+      var v = 0, has = false;
+      if (c) { v = metricValue_(c, metric).v || 0; has = v !== 0; rowTot += v; n++; }
+      line.push(has ? v : '');
+      rowVals.push(v);
+      if (v > maxV) maxV = v;
+    });
+    var tot = isPct ? (n ? Math.round(rowTot / n * 10) / 10 : 0) : Math.round(rowTot * 10) / 10;
+    line.push(tot);
+    rows.push(line);
+    values.push(rowVals);
+  });
+
+  // daily totals row
+  var totRow = [isPct ? 'Avg / day' : 'Daily total'];
+  dates.forEach(function (dt, di) {
+    var s = 0, n = 0;
+    agents.forEach(function (a, ai) { var v = values[ai][di]; if (v) { s += v; n++; } });
+    totRow.push(isPct ? (n ? Math.round(s / n * 10) / 10 : '') : (s ? Math.round(s * 10) / 10 : ''));
+  });
+  totRow.push('');
+  rows.push(totRow);
+
+  sh.getRange(1, 1, 1, 1).setValue('WFM Matrix — ' + (METRIC_LABEL[metric] || metric));
+  var startRow = 2;
+  sh.getRange(startRow, 1, rows.length, header.length).setValues(rows);
+  sh.getRange(startRow, 1, 1, header.length).setFontWeight('bold');
+  sh.getRange(startRow + 1, 1, agents.length, 1).setFontWeight('bold');
+  sh.getRange(rows.length + startRow - 1, 1, 1, header.length).setFontWeight('bold');
+
+  // colour the value cells
+  var c0 = positive ? [224, 247, 244] : [255, 235, 235];
+  var c1 = positive ? [13, 148, 136] : [229, 57, 53];
+  var scaleMax = isPct ? 40 : Math.max(maxV, 1);
+  var bg = [];
+  for (var r = 0; r < agents.length; r++) {
+    var brow = [];
+    for (var cc = 0; cc < dates.length; cc++) {
+      var v = values[r][cc];
+      brow.push(v > 0 ? lerpColor_(Math.min(1, v / scaleMax), c0, c1) : null);
+    }
+    bg.push(brow);
+  }
+  if (agents.length && dates.length) sh.getRange(startRow + 1, 2, agents.length, dates.length).setBackgrounds(bg);
+
+  sh.setFrozenRows(startRow);
+  sh.setFrozenColumns(1);
+  sh.getRange(startRow, 2, 1, dates.length).setNumberFormat('@'); // dates as text headers
+}
+
+/** Month-to-date compensation table in a tab. */
+function writeMtdTab_(data, month) {
+  var sh = getOrCreateSheet_('WFM_MTD');
+  var dts = data.dates.filter(function (d) { return d.slice(0, 7) === month; });
+  var header = ['Agent', 'Shifts', 'Total lost (min)', 'Late count', 'Late (min)', 'Early leave (min)',
+    'Break over (min)', 'Offline over (min)', 'Break dur (min)', 'Shrinkage dur (min)',
+    'Avg shrink %', 'Overtime days', 'Overtime (min)'];
+  var out = [header];
+  var grand = { shifts: 0, lost: 0, lateCnt: 0, late: 0, short: 0, brkOver: 0, offExc: 0, brk: 0, shrinkMin: 0, otDays: 0, otMin: 0 };
+  var rows = [];
+  data.agents.forEach(function (a) {
+    var t = { shifts: 0, lost: 0, lateCnt: 0, late: 0, short: 0, brkOver: 0, offExc: 0, brk: 0, shrinkMin: 0, shrinkPctSum: 0, otDays: 0, otMin: 0 };
+    dts.forEach(function (dt) {
+      var c = data.cells[a.id] && data.cells[a.id][dt]; if (!c) return;
+      t.shifts++; t.lost += c.lostMin || 0; t.brk += c.totalBreak; t.brkOver += c.buckets.breakExcess;
+      t.shrinkMin += c.buckets.shrinkageMin; t.shrinkPctSum += c.buckets.shrinkagePct; t.offExc += c.offlineExcess;
+      if (c.isLate) { t.lateCnt++; t.late += c.lateMin; }
+      if (c.shortfallMin > 0) t.short += c.shortfallMin;
+      if (c.isOvertime) { t.otDays++; t.otMin += c.overtimeMin || 0; }
+    });
+    if (!t.shifts) return;
+    rows.push([a.name, t.shifts, Math.round(t.lost), t.lateCnt, Math.round(t.late), Math.round(t.short),
+      Math.round(t.brkOver), Math.round(t.offExc), Math.round(t.brk), Math.round(t.shrinkMin),
+      Math.round(t.shrinkPctSum / t.shifts * 10) / 10, t.otDays, Math.round(t.otMin)]);
+    grand.shifts += t.shifts; grand.lost += t.lost; grand.lateCnt += t.lateCnt; grand.late += t.late;
+    grand.short += t.short; grand.brkOver += t.brkOver; grand.offExc += t.offExc; grand.brk += t.brk;
+    grand.shrinkMin += t.shrinkMin; grand.otDays += t.otDays; grand.otMin += t.otMin;
+  });
+  rows.sort(function (a, b) { return b[2] - a[2]; });                 // worst lost first
+  rows.forEach(function (r) { out.push(r); });
+  out.push(['TEAM TOTAL', grand.shifts, Math.round(grand.lost), grand.lateCnt, Math.round(grand.late),
+    Math.round(grand.short), Math.round(grand.brkOver), Math.round(grand.offExc), Math.round(grand.brk),
+    Math.round(grand.shrinkMin), '', grand.otDays, Math.round(grand.otMin)]);
+
+  sh.getRange(1, 1).setValue('WFM MTD — ' + month + '  (minutes each agent should compensate)');
+  sh.getRange(2, 1, out.length, header.length).setValues(out);
+  sh.getRange(2, 1, 1, header.length).setFontWeight('bold');
+  sh.getRange(out.length + 1, 1, 1, header.length).setFontWeight('bold');
+  sh.getRange(3, 3, Math.max(rows.length, 1), 1).setFontWeight('bold'); // Total lost column
+  sh.setFrozenRows(2);
+  sh.setFrozenColumns(1);
+}
+
+/** One row per agent-day with every metric, for pivots. */
+function writeDetailTab_(data) {
+  var sh = getOrCreateSheet_('WFM_Detail');
+  var header = ['Agent', 'Date', 'Scheduled', 'Login', 'Logout', 'Login source', 'Off code', 'Overtime?',
+    'Late?', 'Late min', 'Worked min', 'Early leave min', 'Break total', 'Break over', 'Break exceeded?',
+    'Offline total', 'Offline over', 'Shrinkage min', 'Shrinkage %', 'Total lost (min)', 'Exceptions'];
+  var out = [header];
+  data.agents.forEach(function (a) {
+    var byDate = data.cells[a.id] || {};
+    Object.keys(byDate).sort().forEach(function (dt) {
+      var c = byDate[dt];
+      out.push([a.name, dt, tOnly_(c.scheduledStart), tOnly_(c.login), tOnly_(c.logout), c.loginSource,
+        c.offCode || '', c.isOvertime ? 'yes' : '', c.isLate ? 'yes' : '', c.lateMin, c.workedMin,
+        c.shortfallMin, c.totalBreak, c.breakOverMin, c.breakExceeded ? 'yes' : '', c.totalOffline,
+        c.offlineExcess, c.buckets.shrinkageMin, c.buckets.shrinkagePct, c.lostMin,
+        (c.appliedExceptions || []).map(function (e) { return e.rule; }).join(', ')]);
+    });
+  });
+  sh.getRange(1, 1, out.length, header.length).setValues(out);
+  sh.getRange(1, 1, 1, header.length).setFontWeight('bold');
+  sh.setFrozenRows(1);
+}
+function tOnly_(iso) { if (!iso) return ''; var p = String(iso).split('T'); return p[1] ? p[1].slice(0, 5) : p[0]; }
+
+function lerpColor_(t, c0, c1) {
+  var r = Math.round(c0[0] + (c1[0] - c0[0]) * t);
+  var g = Math.round(c0[1] + (c1[1] - c0[1]) * t);
+  var b = Math.round(c0[2] + (c1[2] - c0[2]) * t);
+  return '#' + hex2_(r) + hex2_(g) + hex2_(b);
+}
+function hex2_(n) { n = Math.max(0, Math.min(255, n)); var s = n.toString(16); return s.length < 2 ? '0' + s : s; }

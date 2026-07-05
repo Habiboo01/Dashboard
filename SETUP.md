@@ -152,6 +152,16 @@ A per-agent table for a chosen month: **break duration**, **shrinkage duration**
 offline-over minutes, late count/minutes, break- and offline-exceed counts, and early-leave minutes.
 Pick the month at the top; respects the agent filter; export to CSV. Use this for the end-of-month review.
 
+## Native Google Sheets output (no web app needed)
+The script also renders the dashboard as **tabs inside the spreadsheet**. On open you get a
+**WFM Dashboard** menu → **Refresh all tabs**, which (re)builds:
+- **WFM_Matrix** — agents (rows) × dates (cols), colour-scaled, for the metric in Config
+  `sheet_metric` (default `lost`; also `late`/`break`/`offline`/`short`/`overtime`/`shrink`).
+- **WFM_MTD** — per-agent month totals led by **Total lost (to compensate)**, worst-first, with a
+  TEAM TOTAL row. Month = Config `mtd_month` (yyyy-MM) or the latest month in the data.
+- **WFM_Detail** — one row per agent-day with every metric, ready for your own pivot tables.
+Run `buildSheetReport` from the editor once to authorize; after that use the menu.
+
 ## Filtering the view
 - **Agents dropdown** (top-right of the Matrix): tick/untick to show or hide specific agents everywhere
   (matrix, leaderboard, day breakdown, CSV). Your choice is remembered in the browser. Use **All / None**
