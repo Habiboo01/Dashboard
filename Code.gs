@@ -257,24 +257,27 @@ function readSchedule_(agents, rawYearHint) {
   var values = sh.getDataRange().getValues();
   if (!values.length) return out;
 
-  var FIXED = ['name', 'manager', 'priority', 'al balance'];
+  var FIXED = ['name', 'manager', 'priority', 'al balance', 'e-mail', 'email',
+               'planned leaves', 'unplanned leaves', 'wo', 'al balance'];
   for (var hr = 0; hr < values.length; hr++) {
     var row = values[hr];
     var lc = row.map(function (c) { return String(c == null ? '' : c).trim().toLowerCase(); });
     var nameCol = lc.indexOf('name');
     if (nameCol === -1) continue;
+    var emailCol = lc.indexOf('e-mail'); if (emailCol === -1) emailCol = lc.indexOf('email');
 
-    // Determine where date columns begin (after the fixed columns present in this header).
+    // Date columns begin after 'AL Balance' / the last fixed column we recognize.
     var firstDateCol = nameCol + 1;
-    for (var c = nameCol; c < lc.length; c++) {
-      if (FIXED.indexOf(lc[c]) !== -1) firstDateCol = c + 1;
-    }
+    var alb = lc.indexOf('al balance');
+    if (alb !== -1) firstDateCol = alb + 1;
+    else for (var c = nameCol; c < lc.length; c++) if (FIXED.indexOf(lc[c]) !== -1) firstDateCol = c + 1;
 
-    // Build column -> date map from this header row (fall back to the row above for a date).
+    // Column -> date map. Dates may sit on the header row, the row above, or the row below.
     var colDate = {};
     for (var c2 = firstDateCol; c2 < row.length; c2++) {
       var d = parseHeaderDate_(row[c2], rawYearHint);
       if (!d && hr > 0) d = parseHeaderDate_(values[hr - 1][c2], rawYearHint);
+      if (!d && hr + 1 < values.length) d = parseHeaderDate_(values[hr + 1][c2], rawYearHint);
       if (d) colDate[c2] = ymd_(d);
     }
     if (!Object.keys(colDate).length) continue; // not a real schedule header, keep scanning
@@ -283,16 +286,15 @@ function readSchedule_(agents, rawYearHint) {
     for (var dr = hr + 1; dr < values.length; dr++) {
       var drow = values[dr];
       var nm = String(drow[nameCol] == null ? '' : drow[nameCol]).trim();
-      if (!nm) continue;
-      if (String(nm).toLowerCase() === 'name') break; // next header block
-      var agent = agents.byName[nm.toLowerCase()];
+      var em = emailCol >= 0 ? String(drow[emailCol] == null ? '' : drow[emailCol]).trim() : '';
+      if (!nm && !em) continue;
+      if (nm.toLowerCase() === 'name') break; // next header block
+      var agent = (em && agents.byEmail[em.toLowerCase()]) || (nm && agents.byName[nm.toLowerCase()]);
       var aid = agent ? agent.id : null;
       if (!aid) continue;
       out[aid] = out[aid] || {};
       Object.keys(colDate).forEach(function (cc) {
-        var cell = drow[cc];
-        var parsed = parseShiftCell_(cell);
-        out[aid][colDate[cc]] = parsed;
+        out[aid][colDate[cc]] = parseShiftCell_(drow[cc]);
       });
     }
     break; // first valid header block anchors parsing
@@ -312,16 +314,21 @@ function readPerformance_(agents) {
   if (!data.headers.length) return out;
   var pc = (SOURCES.perfCols) || {};
   var colAgent = pc.agent || pickHeader_(data.headers, ['agent_added_id', 'agent_id', 'added_id', 'agent id']);
-  var colEmail = pc.email || pickHeader_(data.headers, ['agent_email', 'email']);
-  var colDate  = pc.date  || pickHeader_(data.headers, ['activity_date', 'date', 'day']);
-  var colLogin = pc.login || pickHeader_(data.headers, ['first_login', 'first login', 'login', 'sign_in', 'sign in', 'first_status_start', 'shift_start', 'start_time', 'clock_in']);
-  var colOut   = pc.logout|| pickHeader_(data.headers, ['last_logout', 'logout', 'sign_out', 'sign out', 'last_status_end', 'shift_end', 'end_time', 'clock_out']);
+  var colEmail = pc.email || pickHeader_(data.headers, ['agent_email', 'email', 'e-mail']);
+  var colName  = pc.name  || pickHeader_(data.headers, ['agent_name', 'name']);
+  var colDate  = pc.date  || pickHeader_(data.headers, ['work_date', 'activity_date', 'date', 'day']);
+  var colLogin = pc.login || pickHeader_(data.headers, ['first_hour', 'first_login', 'first login', 'login', 'sign_in', 'clock_in', 'shift_start', 'start_time']);
+  var colOut   = pc.logout|| pickHeader_(data.headers, ['last_hour', 'last_logout', 'logout', 'sign_out', 'clock_out', 'shift_end', 'end_time']);
 
   data.rows.forEach(function (r) {
     var id = colAgent ? normId_(r[colAgent]) : null;
     if (!id && colEmail && r[colEmail]) {
-      var a = agents.byEmail && agents.byEmail[String(r[colEmail]).trim().toLowerCase()];
-      if (a) id = a.id;
+      var ae = agents.byEmail && agents.byEmail[String(r[colEmail]).trim().toLowerCase()];
+      if (ae) id = ae.id;
+    }
+    if (!id && colName && r[colName]) {
+      var an = agents.byName && agents.byName[String(r[colName]).trim().toLowerCase()];
+      if (an) id = an.id;
     }
     var d = colDate ? toDate_(r[colDate]) : null;
     if (!id || !d) return;
@@ -452,6 +459,10 @@ function scoreShift_(shift, agent, schedForAgent, auxBuckets, perfForAgent) {
   if (perfRec) {
     if (perfRec.login) { login = perfRec.login; loginSource = 'performance'; }
     if (perfRec.logout) logout = perfRec.logout;
+  }
+  // Overnight shift: logout time-of-day is earlier than login -> it's the next day.
+  if (logout && login && logout.getTime() < login.getTime()) {
+    logout = new Date(logout.getTime() + 24 * 3600000);
   }
 
   // --- lateness ---
@@ -977,20 +988,18 @@ function parseHeaderDate_(v, yearHint) {
 function parseShiftCell_(v) {
   var s = String(v == null ? '' : v).trim();
   if (!s) return { startHour: null, off: true, code: '' };
-  var up = s.toUpperCase();
-  if (up === 'WO' || up === 'AL' || up === 'CL' || up === 'OFF' || up === 'DAY OFF') {
-    return { startHour: null, off: true, code: up };
-  }
-  // "9 AM", "12 PM", "3 AM", "9AM", "09:00"
-  var m = s.match(/(\d{1,2})\s*(AM|PM)/i);
+  // 12h clock with optional minutes: "1 AM", "12 AM", "9 PM", "9:00 PM"
+  var m = s.match(/^\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\b/i);
   if (m) {
     var h = parseInt(m[1], 10) % 12;
-    if (/pm/i.test(m[2])) h += 12;
+    if (/pm/i.test(m[3])) h += 12;
     return { startHour: h, off: false, code: s };
   }
-  m = s.match(/^(\d{1,2}):(\d{2})/);
+  // 24h: "18:00" or "18"
+  m = s.match(/^\s*(\d{1,2}):(\d{2})\s*$/);
   if (m) return { startHour: parseInt(m[1], 10), off: false, code: s };
-  m = s.match(/^(\d{1,2})$/);
+  m = s.match(/^\s*(\d{1,2})\s*$/);
   if (m) return { startHour: parseInt(m[1], 10), off: false, code: s };
-  return { startHour: null, off: true, code: s }; // unknown -> treat as off/no shift
+  // anything else (WO, AL, SL, CL, UPL, NCNS, Holiday, Resigned, …) = off / no shift
+  return { startHour: null, off: true, code: s.toUpperCase() };
 }
