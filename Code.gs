@@ -421,12 +421,13 @@ function buildShifts_(statuses) {
 
   for (var i = 0; i < statuses.length; i++) {
     var st = statuses[i];
-    var isUnavail = /unavailable/i.test(st.status);
+    // A between-shift gap is an offline state (Unavailable OR a long Upcoming Offline).
+    var isOffline = /unavailable|offline/i.test(st.status);
     // Use the ACTUAL clock span (end - start), not the reported duration_min, which
-    // can be wrong for long between-shift Unavailable blocks (e.g. a WO gap logged as "3m").
+    // can be wrong for long between-shift blocks (e.g. a 35-hour gap logged as "2m").
     var span = st.end ? (st.end - st.start) / 60000
              : (st.durMin != null ? st.durMin : null);
-    var bigGap = isUnavail && (span == null || span > CONFIG.SHIFT_SPLIT_GAP_MIN);
+    var bigGap = isOffline && (span == null || span > CONFIG.SHIFT_SPLIT_GAP_MIN);
 
     // A large plain time gap before this status also splits shifts.
     if (cur && cur.lastEnd) {
@@ -485,6 +486,18 @@ function scoreShift_(shift, agent, schedForAgent, auxBuckets, perfForAgent) {
     logout = new Date(logout.getTime() + 24 * 3600000);
   }
 
+  // Clamp the shift's statuses to the Performance login-logout window (with a small buffer)
+  // so a corrupt long status can't drag in the next day's activity. Timeline-only shifts
+  // keep all their grouped statuses.
+  var shiftStatuses = shift.statuses;
+  if (perfRec && perfRec.login && perfRec.logout) {
+    var wStart = login.getTime() - 20 * 60000, wEnd = logout.getTime() + 20 * 60000;
+    shiftStatuses = shift.statuses.filter(function (s) {
+      var ss = s.start.getTime(), se = s.end ? s.end.getTime() : ss;
+      return se > wStart && ss < wEnd;   // overlaps the shift window
+    });
+  }
+
   // --- lateness ---
   // Report the FULL minutes late (matching the workbook); the grace only decides
   // whether it counts as a violation, it is not subtracted from the reported minutes.
@@ -510,7 +523,7 @@ function scoreShift_(shift, agent, schedForAgent, auxBuckets, perfForAgent) {
   var lastHourStart = new Date(shiftEndExpected.getTime() - CONFIG.BREAK_EDGE_WINDOW_MIN * 60000);
   var breakInFirstHour = false, breakInLastHour = false;
 
-  shift.statuses.forEach(function (st) {
+  shiftStatuses.forEach(function (st) {
     var m = st.durMin != null ? st.durMin : (st.end ? (st.end - st.start) / 60000 : 0);
     m = m || 0;
     auxMin[st.status] = (auxMin[st.status] || 0) + m;
@@ -597,7 +610,7 @@ function scoreShift_(shift, agent, schedForAgent, auxBuckets, perfForAgent) {
     offlineExceeded: offlineExceeded,
     auxMin: roundMap_(auxMin),
     buckets: buckets,
-    statuses: shift.statuses.map(function (s) {
+    statuses: shiftStatuses.map(function (s) {
       return { status: s.status, start: iso_(s.start), end: s.end ? iso_(s.end) : null,
                min: round1_(s.durMin != null ? s.durMin : 0) };
     }),

@@ -131,6 +131,16 @@ function runTests() {
   check('C11 distant perf login not attached to fragment', m11.loginSource === 'timeline', m11.loginSource);
   check('C11 no absurd lateness', m11.lateMin < 60, 'late ' + m11.lateMin);
 
+  // --- Case 12: long Upcoming Offline with wrong small duration still splits shifts ---
+  var d3 = '2026-06-04';
+  var stz = [
+    st_('Available', day + 'T15:00:00', day + 'T23:00:00'),
+    st_('Upcoming Offline', day + 'T23:00:00', d3 + 'T15:00:00'), // ~64h gap, mislabeled below
+    st_('Available', d3 + 'T15:00:00', d3 + 'T23:00:00')
+  ];
+  stz[1].durMin = 2; // corrupt duration that previously merged the two days
+  check('C12 splits on long Upcoming Offline', buildShifts_(stz).length === 2, 'got ' + buildShifts_(stz).length);
+
   Logger.log(results.join('\n'));
   return results;
 }
