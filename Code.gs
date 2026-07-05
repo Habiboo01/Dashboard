@@ -29,7 +29,9 @@ var CONFIG = {
   SHIFT_SPLIT_GAP_MIN: 120,       // an Unavailable gap longer than this ends a shift
   LOGIN_MATCH_WINDOW_MIN: 180,    // login within this of a scheduled start binds to it
   SHRINKAGE_MODE: 'unplanned',    // 'unplanned' (excuse allowed break/offline) | 'gross'
-  CANONICAL_START_HOURS: [0, 9, 12, 15, 18, 21, 3]  // fallback snap targets when no roster
+  // The 5 canonical shifts (each 9h): 09-18, 12-21, 15-00, 18-03, 00-09.
+  // Used only as a fallback when the Schedule has no roster entry for that agent/day.
+  CANONICAL_START_HOURS: [9, 12, 15, 18, 0]
 };
 
 // Default status -> bucket mapping (overridable via the Aux_Config tab).
@@ -69,8 +71,9 @@ function include(name) {
 
 function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
 
-function readSheetObjects_(name) {
-  var sh = ss_().getSheetByName(name);
+function readSheetObjects_(name) { return sheetToObjects_(ss_().getSheetByName(name)); }
+
+function sheetToObjects_(sh) {
   if (!sh) return { headers: [], rows: [] };
   var values = sh.getDataRange().getValues();
   if (!values.length) return { headers: [], rows: [] };
@@ -87,9 +90,54 @@ function readSheetObjects_(name) {
   return { headers: headers, rows: rows };
 }
 
+/* ---- external source resolution (Schedule / Performance / Raw can live in other files) ---- */
+var SOURCES = null;   // populated per request by readSources_()
+
+function readSources_() {
+  var g = { schedule: {}, performance: {}, raw: {}, perfCols: {} };
+  var data = readSheetObjects_('Config');
+  data.rows.forEach(function (r) {
+    var k = String(r['setting'] || '').trim().toLowerCase();
+    var v = r['value'];
+    if (v === '' || v == null) return;
+    v = String(v).trim();
+    if (k === 'schedule_sheet_id') { g.schedule.id = parseSheetId_(v); if (g.schedule.gid == null) g.schedule.gid = parseGid_(v); }
+    else if (k === 'schedule_gid') g.schedule.gid = parseInt(v, 10);
+    else if (k === 'performance_sheet_id') { g.performance.id = parseSheetId_(v); if (g.performance.gid == null) g.performance.gid = parseGid_(v); }
+    else if (k === 'performance_gid') g.performance.gid = parseInt(v, 10);
+    else if (k === 'raw_sheet_id') { g.raw.id = parseSheetId_(v); if (g.raw.gid == null) g.raw.gid = parseGid_(v); }
+    else if (k === 'raw_gid') g.raw.gid = parseInt(v, 10);
+    else if (k.indexOf('perf_col_') === 0) g.perfCols[k.replace('perf_col_', '')] = v;
+  });
+  return g;
+}
+
+/** Accepts a bare id or a full Google Sheets URL. */
+function parseSheetId_(v) {
+  var m = String(v).match(/\/d\/([a-zA-Z0-9-_]+)/);
+  return m ? m[1] : String(v).trim();
+}
+function parseGid_(v) {
+  var m = String(v).match(/[#&?]gid=(\d+)/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+/** Return the Sheet for a source: external (openById + gid) if configured, else a bound tab. */
+function openSource_(src, fallbackTab) {
+  if (src && src.id) {
+    var x = SpreadsheetApp.openById(src.id);
+    if (src.gid != null) {
+      var byGid = x.getSheets().filter(function (s) { return s.getSheetId() === src.gid; })[0];
+      if (byGid) return byGid;
+    }
+    return x.getSheets()[0];
+  }
+  return ss_().getSheetByName(fallbackTab);
+}
+
 function readAgents_() {
   var data = readSheetObjects_('Agents');
-  var byId = {}, byName = {};
+  var byId = {}, byName = {}, byEmail = {};
   data.rows.forEach(function (r) {
     var id = normId_(r['agent_id']);
     if (!id) return;
@@ -99,8 +147,9 @@ function readAgents_() {
               email: String(r['agent_email'] || '').trim(), included: included };
     byId[id] = a;
     if (a.name) byName[a.name.toLowerCase()] = a;
+    if (a.email) byEmail[a.email.toLowerCase()] = a;
   });
-  return { byId: byId, byName: byName };
+  return { byId: byId, byName: byName, byEmail: byEmail };
 }
 
 /** Config tab (setting | value) overrides the CONFIG thresholds. Call before scoring. */
@@ -164,9 +213,9 @@ function readAuxBuckets_() {
   return map;
 }
 
-/** Raw_Status_Log -> statuses grouped by agent id. */
+/** Raw_Status_Log (bound tab or external) -> statuses grouped by agent id. */
 function readRawStatuses_() {
-  var data = readSheetObjects_('Raw_Status_Log');
+  var data = sheetToObjects_(openSource_(SOURCES && SOURCES.raw, 'Raw_Status_Log'));
   var byAgent = {};
   data.rows.forEach(function (r) {
     var id = normId_(r['agent_added_id']);
@@ -202,7 +251,7 @@ function readRawStatuses_() {
  * because each column carries its own date.
  */
 function readSchedule_(agents, rawYearHint) {
-  var sh = ss_().getSheetByName('Schedule');
+  var sh = openSource_(SOURCES && SOURCES.schedule, 'Schedule');
   var out = {};
   if (!sh) return out;
   var values = sh.getDataRange().getValues();
@@ -249,6 +298,80 @@ function readSchedule_(agents, rawYearHint) {
     break; // first valid header block anchors parsing
   }
   return out;
+}
+
+/**
+ * Performance sheet (external) -> { agentId: { 'yyyy-MM-dd': {login:Date, logout:Date} } }.
+ * Columns are auto-detected by header keywords; override via Config keys
+ * perf_col_agent / perf_col_email / perf_col_date / perf_col_login / perf_col_logout.
+ */
+function readPerformance_(agents) {
+  var out = {};
+  if (!(SOURCES && SOURCES.performance && SOURCES.performance.id)) return out; // not configured
+  var data = sheetToObjects_(openSource_(SOURCES.performance, 'Performance'));
+  if (!data.headers.length) return out;
+  var pc = (SOURCES.perfCols) || {};
+  var colAgent = pc.agent || pickHeader_(data.headers, ['agent_added_id', 'agent_id', 'added_id', 'agent id']);
+  var colEmail = pc.email || pickHeader_(data.headers, ['agent_email', 'email']);
+  var colDate  = pc.date  || pickHeader_(data.headers, ['activity_date', 'date', 'day']);
+  var colLogin = pc.login || pickHeader_(data.headers, ['first_login', 'first login', 'login', 'sign_in', 'sign in', 'first_status_start', 'shift_start', 'start_time', 'clock_in']);
+  var colOut   = pc.logout|| pickHeader_(data.headers, ['last_logout', 'logout', 'sign_out', 'sign out', 'last_status_end', 'shift_end', 'end_time', 'clock_out']);
+
+  data.rows.forEach(function (r) {
+    var id = colAgent ? normId_(r[colAgent]) : null;
+    if (!id && colEmail && r[colEmail]) {
+      var a = agents.byEmail && agents.byEmail[String(r[colEmail]).trim().toLowerCase()];
+      if (a) id = a.id;
+    }
+    var d = colDate ? toDate_(r[colDate]) : null;
+    if (!id || !d) return;
+    var dayKey = ymd_(d);
+    var login = colLogin ? parsePerfTime_(r[colLogin], d) : null;
+    var logout = colOut ? parsePerfTime_(r[colOut], d) : null;
+    out[id] = out[id] || {};
+    out[id][dayKey] = { login: login, logout: logout };
+  });
+  return out;
+}
+
+function pickHeader_(headers, cands) {
+  var lc = headers.map(function (h) { return String(h).trim().toLowerCase(); });
+  for (var i = 0; i < cands.length; i++) {
+    var idx = lc.indexOf(cands[i]);
+    if (idx !== -1) return headers[idx];
+  }
+  // loose contains-match as a fallback
+  for (var j = 0; j < cands.length; j++) {
+    for (var k = 0; k < lc.length; k++) if (lc[k].indexOf(cands[j]) !== -1) return headers[k];
+  }
+  return null;
+}
+
+/** Parse a performance time cell into a Date, combining with the row's date if it's time-only. */
+function parsePerfTime_(v, dateObj) {
+  if (v == null || v === '') return null;
+  if (Object.prototype.toString.call(v) === '[object Date]') {
+    if (isNaN(v)) return null;
+    // Sheets stores a time-only value as 1899-12-30 -> graft it onto the activity date.
+    if (v.getFullYear() < 1970 && dateObj) {
+      return new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(),
+                      v.getHours(), v.getMinutes(), v.getSeconds());
+    }
+    return v;
+  }
+  var s = String(v).trim();
+  var full = new Date(s);
+  if (!isNaN(full) && /\d{4}/.test(s)) return full;      // has a year -> full datetime
+  // time-only string like "15:03", "3:03 PM"
+  var m = s.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?/i);
+  if (m && dateObj) {
+    var h = parseInt(m[1], 10) % 12;
+    if (m[4] && /pm/i.test(m[4])) h += 12;
+    else if (!m[4]) h = parseInt(m[1], 10);              // 24h
+    return new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(),
+                    h, parseInt(m[2], 10), m[3] ? parseInt(m[3], 10) : 0);
+  }
+  return null;
 }
 
 function readExceptions_(agents) {
@@ -310,7 +433,7 @@ function buildShifts_(statuses) {
 }
 
 /** Score one shift against all rules; returns a metrics object (pre-exception). */
-function scoreShift_(shift, agent, schedForAgent, auxBuckets) {
+function scoreShift_(shift, agent, schedForAgent, auxBuckets, perfForAgent) {
   var login = shift.start;
   var logout = shift.lastEnd || shift.start;
 
@@ -320,6 +443,16 @@ function scoreShift_(shift, agent, schedForAgent, auxBuckets) {
   var offScheduled = sched.off;                   // true if roster says WO/AL/CL
   var startHour = scheduledStart;
   var shiftEndExpected = new Date(scheduledStart.getTime() + CONFIG.SHIFT_MINUTES * 60000);
+
+  // --- authoritative login/logout from the Performance sheet, if provided ---
+  // Timeline drives shift grouping + breaks; Performance (when configured) is the
+  // source of truth for the actual first login and logout used for late/early/overtime.
+  var perfRec = perfForAgent && (perfForAgent[ymd_(scheduledStart)] || perfForAgent[ymd_(login)]);
+  var loginSource = 'timeline';
+  if (perfRec) {
+    if (perfRec.login) { login = perfRec.login; loginSource = 'performance'; }
+    if (perfRec.logout) logout = perfRec.logout;
+  }
 
   // --- lateness ---
   // Report the FULL minutes late (matching the workbook); the grace only decides
@@ -413,6 +546,7 @@ function scoreShift_(shift, agent, schedForAgent, auxBuckets) {
     scheduledStart: iso_(scheduledStart),
     login: iso_(login),
     logout: iso_(logout),
+    loginSource: loginSource,
     offScheduled: offScheduled,
     offCode: offCode,
     isOvertime: isOvertime,
@@ -637,11 +771,13 @@ function applyWrongAux_(shift, e) {
 function getDashboardData(opts) {
   opts = opts || {};
   applyConfigOverrides_();
+  SOURCES = readSources_();
   var agents = readAgents_();
   var auxBuckets = readAuxBuckets_();
   var rawByAgent = readRawStatuses_();
   var yearHint = inferYear_(rawByAgent);
   var schedule = readSchedule_(agents, yearHint);
+  var performance = readPerformance_(agents);
   var exceptions = readExceptions_(agents);
 
   var agentIds = Object.keys(rawByAgent);
@@ -654,7 +790,7 @@ function getDashboardData(opts) {
     if (!agent.included) return; // drop excluded agents entirely
     var shifts = buildShifts_(rawByAgent[id]);
     shifts.forEach(function (shift) {
-      var scored = scoreShift_(shift, agent, schedule[id], auxBuckets);
+      var scored = scoreShift_(shift, agent, schedule[id], auxBuckets, performance[id]);
       applyExceptions_(scored, exceptions, auxBuckets);
       var d = scored.date;
       dateSet[d] = true;

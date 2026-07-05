@@ -103,6 +103,16 @@ function runTests() {
   applyExceptions_(m8, [{ agentId: '18', date: '2026-06-01', rule: 'wrong_aux', minutes: 20, fromAux: 'Personal Time', toAux: 'Meeting', reason: 'was a meeting' }], auxBuckets);
   check('C8 wrong_aux reduces lost by ~20', Math.abs((lostBefore - m8.lostMin) - 20) <= 1, 'before ' + lostBefore + ' after ' + m8.lostMin);
 
+  // --- Case 9: Performance sheet login overrides timeline for lateness ---
+  var s9 = mkShift_([ st_('Available', day + 'T15:20:00', day + 'T23:59:00') ]);
+  var perf = { '2026-06-01': { login: new Date(day + 'T15:03:00'), logout: new Date(day + 'T23:59:00') } };
+  var m9 = scoreShift_(s9, agent, { '2026-06-01': { startHour: 15, off: false } }, auxBuckets, perf);
+  check('C9 uses performance login', m9.loginSource === 'performance', m9.loginSource);
+  check('C9 not late (15:03 within grace)', m9.isLate === false, 'late ' + m9.lateMin);
+  // Without performance, the 15:20 timeline login would be late.
+  var m9b = scoreShift_(s9, agent, { '2026-06-01': { startHour: 15, off: false } }, auxBuckets);
+  check('C9 timeline login would be late 20', m9b.isLate === true && Math.abs(m9b.lateMin - 20) <= 1, 'got ' + m9b.lateMin);
+
   Logger.log(results.join('\n'));
   return results;
 }

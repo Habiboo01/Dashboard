@@ -73,6 +73,25 @@ Recognised settings (blank tab = built-in defaults): `shift_hours` (9), `break_t
 `shift_split_gap_min` (120), `login_match_window_min` (180), `shrinkage_mode` (`unplanned` | `gross`).
 The **Rules** tab in the dashboard writes this tab for you; changes apply on the next refresh.
 
+### External data sources (Schedule / Performance / Raw in another spreadsheet)
+Add these to the `Config` tab to read a source from a **different** Google Sheet by link (or id) + gid.
+You can paste the full sheet URL into the `*_sheet_id` cell — the gid is taken from it automatically.
+```
+setting                  value
+schedule_sheet_id        <URL or spreadsheet id of the Schedule file>
+schedule_gid             <the tab's gid>            (optional if the URL has #gid=)
+performance_sheet_id     <URL or id of the Performance file>
+performance_gid          <the tab's gid>
+raw_sheet_id             <optional: read the timeline from another file too>
+raw_gid                  <optional>
+```
+**Performance sheet** supplies each agent's first **login** and **logout** (used for lateness,
+early-leave and overtime); the timeline is still used for breaks/aux. Columns are auto-detected by
+header (login/logout/date/agent/email); if your headers are unusual, pin them with
+`perf_col_login`, `perf_col_logout`, `perf_col_date`, `perf_col_agent`, `perf_col_email`.
+When no source is configured, the app falls back to the bound tabs and infers login from the timeline.
+The 5 canonical shift starts (fallback only) are 09:00, 12:00, 15:00, 18:00, 00:00.
+
 ## 2. Add the script
 1. In the Sheet: **Extensions → Apps Script**.
 2. Create files matching this repo: `Code.gs`, `WFM.html` (Apps Script calls it "WFM"), `Tests.gs`,

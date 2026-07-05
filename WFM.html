@@ -438,7 +438,7 @@ function drill(aid,dt){
   var segs=c.statuses.map(function(s){return '<div class="seg"><span class="dot" style="background:'+statusColor(s.status)+'"></span><span class="t">'+tm(s.start)+'–'+(s.end?tm(s.end):'…')+'</span><span class="nm">'+s.status+'</span><span class="t">'+s.min+'m</span></div>';}).join('');
   document.getElementById('modalBox').innerHTML=
     '<span class="mclose" onclick="closeModal()">×</span>'+
-    '<h3>'+a.name+'</h3><div class="sub">'+dt+' · scheduled '+tm(c.scheduledStart)+' · login '+tm(c.login)+(c.offScheduled?' · <span style="color:var(--amber)">rostered OFF</span>':'')+'</div>'+
+    '<h3>'+a.name+'</h3><div class="sub">'+dt+' · scheduled '+tm(c.scheduledStart)+' · login '+tm(c.login)+' · out '+tm(c.logout)+(c.loginSource==='performance'?' <span style="color:var(--teal)">(perf)</span>':'')+(c.offScheduled?' · <span style="color:var(--amber)">rostered OFF</span>':'')+'</div>'+
     '<div style="margin-top:10px">'+tags+' '+exApplied+'</div>'+
     '<div class="kv">'+
       kv('Worked',hm(c.workedMin))+
